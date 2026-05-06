@@ -24,4 +24,5 @@ vendor/
 .terraform/
 *.tfstate
 *.tfstate.*
-.terraform.lock.hcl
+infra/terraform/.build/
+
