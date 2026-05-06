@@ -45,11 +45,19 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 - **Domain:** `internal/domain` — Business, CatalogService, Staff, Money, errors.
 - **App:** `internal/app/tenancy`, `internal/app/catalog` — use cases + `internal/app/ports` interfaces.
 - **Adapters:** `internal/adapters/dynamo` — single-table keys `BUSINESS#` / `META#` / `SERVICE#` / `STAFF#`, list cursors via base64 PK/SK.
-- **HTTP:** Real routes when `Deps.Tenancy` + `Deps.Catalog` are wired in `cmd/api` (always in Lambda). Stub routes remain for Phase 4+ paths.
+- **HTTP:** Real routes when `Deps.Tenancy` + `Deps.Catalog` are wired in `cmd/api` (always in Lambda). Additional routes (customers, availability) depend on Phase 4 deps; stubs remain for bookings and later phases.
 - **Auth (placeholder):**
   - Optional `PLATFORM_API_KEY` — when set, `POST /v1/platform/businesses` requires header **`X-Api-Key`**.
   - Tenant routes under `/v1/businesses/{businessId}` require **`X-Tenant-Business-Id`** equal to `{businessId}` unless `SKIP_TENANT_CHECK=true` on the Lambda (dev only).
 - **Env:** `CORE_TABLE_NAME` (set by Terraform from the DynamoDB table name).
+
+## Phase 4 — CRM + availability (read-model slots)
+
+- **Domain:** `Customer`, `AvailabilityRule` under `internal/domain`.
+- **App:** `internal/app/customers` (list / create / get / patch, resolve by phone), `internal/app/scheduling` (`PUT` rules, slot list with business timezone + optional service duration).
+- **Adapters:** `CustomerRepository` (partition `CUSTOMER#…`, GSI2 `PHONE#…` / `BUSINESS#tenant`), `AvailabilityRepository` (`SK` `AVAIL#RULES`, full rule list per business).
+- **Pure logic:** `internal/schedule.BuildSlots` — merges overlapping windows per staff/day, steps by slot duration in UTC.
+- **HTTP (under `/v1/businesses/{businessId}`):** `GET|POST /customers`, `GET /customers/by-phone?phone=…`, `GET|PATCH /customers/{customerId}`, `PUT /availability/rules`, `GET /availability/slots?from=&to=&service_id=&staff_id=&slot_minutes=` — active when `Deps.Customers` and `Deps.Scheduling` are wired (default in `cmd/api`).
 
 Variables live in `infra/terraform/variables.tf` (`aws_region`, `project`, `environment`, etc.).
 

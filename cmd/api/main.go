@@ -13,6 +13,8 @@ import (
 
 	"github.com/parama/booking/internal/adapters/dynamo"
 	"github.com/parama/booking/internal/app/catalog"
+	"github.com/parama/booking/internal/app/customers"
+	"github.com/parama/booking/internal/app/scheduling"
 	"github.com/parama/booking/internal/app/tenancy"
 	"github.com/parama/booking/internal/httpapi"
 	"github.com/parama/booking/internal/phase0"
@@ -33,14 +35,25 @@ func main() {
 	bizRepo := &dynamo.BusinessRepository{Client: ddb, Table: table}
 	svcRepo := &dynamo.ServiceRepository{Client: ddb, Table: table}
 	stfRepo := &dynamo.StaffRepository{Client: ddb, Table: table}
+	custRepo := &dynamo.CustomerRepository{Client: ddb, Table: table}
+	availRepo := &dynamo.AvailabilityRepository{Client: ddb, Table: table}
 
 	now := func() time.Time { return time.Now().UTC() }
 	ten := &tenancy.Application{Businesses: bizRepo, Now: now}
 	cat := &catalog.Application{Services: svcRepo, Staff: stfRepo, Now: now}
+	crm := &customers.Application{Customers: custRepo, Now: now}
+	sch := &scheduling.Application{
+		Businesses: bizRepo,
+		Services:   svcRepo,
+		Rules:      availRepo,
+		Now:        now,
+	}
 
 	deps := &httpapi.Deps{
 		Tenancy:         ten,
 		Catalog:         cat,
+		Customers:       crm,
+		Scheduling:      sch,
 		PlatformAPIKey:  os.Getenv("PLATFORM_API_KEY"),
 		SkipTenantCheck: os.Getenv("SKIP_TENANT_CHECK") == "true",
 	}

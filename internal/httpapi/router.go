@@ -14,7 +14,8 @@ type RouterConfig struct {
 }
 
 // NewRouter builds the chi mux. When deps.Tenancy and deps.Catalog are set, Phase 3
-// tenancy + catalog routes are registered; otherwise Phase 2 stubs are used.
+// tenancy + catalog routes are registered; otherwise Phase 2 stubs are used. Customer and
+// scheduling routes activate when those application services are non-nil.
 func NewRouter(cfg RouterConfig, deps *Deps) *chi.Mux {
 	if deps == nil {
 		deps = &Deps{}
@@ -142,7 +143,7 @@ func registerPhase3Routes(r chi.Router, d *Deps) {
 			})
 		})
 
-		registerBusinessScopedStubs(r)
+		registerBusinessScopedStubs(r, d)
 	})
 
 	r.Route("/webhooks", func(r chi.Router) {
@@ -151,22 +152,37 @@ func registerPhase3Routes(r chi.Router, d *Deps) {
 	})
 }
 
-// registerBusinessScopedStubs are routes under /v1/businesses/{businessId} not yet implemented (Phase 4+).
-func registerBusinessScopedStubs(r chi.Router) {
-	r.Route("/customers", func(r chi.Router) {
-		r.Get("/", stub501("list customers"))
-		r.Post("/", stub501("create customer"))
-		r.Get("/by-phone", stub501("get customer by phone"))
-		r.Route("/{customerId}", func(r chi.Router) {
-			r.Get("/", stub501("get customer"))
-			r.Patch("/", stub501("patch customer"))
+// registerBusinessScopedStubs are routes under /v1/businesses/{businessId} beyond catalog.
+func registerBusinessScopedStubs(r chi.Router, d *Deps) {
+	if d != nil && d.Customers != nil && d.Scheduling != nil {
+		r.Route("/customers", func(r chi.Router) {
+			r.Get("/by-phone", d.getCustomerByPhone)
+			r.Get("/", d.listCustomers)
+			r.Post("/", d.postCustomer)
+			r.Route("/{customerId}", func(r chi.Router) {
+				r.Get("/", d.getCustomer)
+				r.Patch("/", d.patchCustomer)
+			})
 		})
-	})
-
-	r.Route("/availability", func(r chi.Router) {
-		r.Put("/rules", stub501("put availability rules"))
-		r.Get("/slots", stub501("get availability slots"))
-	})
+		r.Route("/availability", func(r chi.Router) {
+			r.Put("/rules", d.putAvailabilityRules)
+			r.Get("/slots", d.getAvailabilitySlots)
+		})
+	} else {
+		r.Route("/customers", func(r chi.Router) {
+			r.Get("/", stub501("list customers"))
+			r.Post("/", stub501("create customer"))
+			r.Get("/by-phone", stub501("get customer by phone"))
+			r.Route("/{customerId}", func(r chi.Router) {
+				r.Get("/", stub501("get customer"))
+				r.Patch("/", stub501("patch customer"))
+			})
+		})
+		r.Route("/availability", func(r chi.Router) {
+			r.Put("/rules", stub501("put availability rules"))
+			r.Get("/slots", stub501("get availability slots"))
+		})
+	}
 
 	r.Route("/bookings", func(r chi.Router) {
 		r.Get("/", stub501("list bookings"))
@@ -234,7 +250,7 @@ func registerStubRoutes(r chi.Router) {
 			})
 		})
 
-		registerBusinessScopedStubs(r)
+		registerBusinessScopedStubs(r, &Deps{})
 	})
 
 	r.Route("/webhooks", func(r chi.Router) {
