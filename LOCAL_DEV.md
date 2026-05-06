@@ -82,6 +82,14 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 - **Bookings:** `ConfirmBooking` calls `confirmPaymentGate` when `Payments` repository is wired (always in `cmd/api`): confirmation **409** until policy is satisfied.
 - **HTTP:** `POST|GET /businesses/{id}/payments`, `GET …/bookings/{bookingId}/payments`, `POST /v1/webhooks/payments/{provider}` — normalized JSON `business_id`, `payment_id`, `status`, `external_ref`; optional **`PAYMENT_WEBHOOK_SECRET`** + `X-Payment-Signature: sha256=…`.
 
+## Phase 8 — Notifications (GSI4 + dispatch worker hook)
+
+- **Domain:** `Notification`, kinds, and statuses in `internal/domain/notification.go` (aligned with OpenAPI).
+- **App:** `internal/app/notifications` — create/list, `DispatchDue` (query due rows, WhatsApp via `ChannelOutbound`, mark sent/failed), `ScheduleBookingReminder` on new bookings (24h before start, or ~2 minutes ahead if that time is already past).
+- **Adapters:** `NotificationRepository` (`internal/adapters/dynamo/notification_repo.go`) — base keys `BUSINESS#…` / `NOTIF#…`, **GSI4** due queue `GSI4PK=NOTIFICATION` and `GSI4SK=SCHED#<padded UnixNano>#<notificationId>`; completed rows move to `NOTIFICATION#SENT` / `NOTIFICATION#FAILED` so they leave the due partition.
+- **HTTP:** `GET|POST /businesses/{id}/notifications` (`?status=&cursor=&limit=` on GET). Platform **`POST /v1/platform/notifications/dispatch-due`** (same optional `X-Api-Key` gate as `POST /platform/businesses`) runs one batch of due sends — wire **EventBridge** (or similar) to call it on a schedule in your environment.
+- **Wiring:** `cmd/api` registers `notifyOnBookingCreated` with `bookings.Application.Events` so a successful `CreateBooking` schedules the reminder; conversations reuse the same `WhatsAppStub` outbound instance as notifications.
+
 Variables live in `infra/terraform/variables.tf` (`aws_region`, `project`, `environment`, etc.).
 
 ## CI

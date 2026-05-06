@@ -5,6 +5,7 @@ import (
 	"github.com/parama/booking/internal/app/catalog"
 	"github.com/parama/booking/internal/app/conversations"
 	"github.com/parama/booking/internal/app/customers"
+	"github.com/parama/booking/internal/app/notifications"
 	"github.com/parama/booking/internal/app/payments"
 	"github.com/parama/booking/internal/app/scheduling"
 	"github.com/parama/booking/internal/app/tenancy"
@@ -19,6 +20,7 @@ type Deps struct {
 	Bookings        *bookings.Application
 	Payments        *payments.Application
 	Conversations   *conversations.Application
+	Notifications   *notifications.Application
 	PlatformAPIKey  string
 	SkipTenantCheck bool
 }

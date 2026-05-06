@@ -117,6 +117,9 @@ func (d *Deps) tenantMiddleware(next http.Handler) http.Handler {
 
 func registerPhase3Routes(r chi.Router, d *Deps) {
 	r.With(d.platformKeyMiddleware).Post("/platform/businesses", d.postPlatformBusinesses)
+	if d.Notifications != nil {
+		r.With(d.platformKeyMiddleware).Post("/platform/notifications/dispatch-due", d.postDispatchDueNotifications)
+	}
 
 	r.Route("/businesses/{businessId}", func(r chi.Router) {
 		r.Use(d.tenantMiddleware)
@@ -266,10 +269,17 @@ func registerBusinessScopedStubs(r chi.Router, d *Deps) {
 		})
 	}
 
-	r.Route("/notifications", func(r chi.Router) {
-		r.Get("/", stub501("list notifications"))
-		r.Post("/", stub501("schedule notification"))
-	})
+	if d != nil && d.Notifications != nil {
+		r.Route("/notifications", func(r chi.Router) {
+			r.Get("/", d.listNotifications)
+			r.Post("/", d.postNotification)
+		})
+	} else {
+		r.Route("/notifications", func(r chi.Router) {
+			r.Get("/", stub501("list notifications"))
+			r.Post("/", stub501("schedule notification"))
+		})
+	}
 }
 
 func registerStubRoutes(r chi.Router) {

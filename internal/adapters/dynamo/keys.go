@@ -3,6 +3,7 @@ package dynamo
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -18,7 +19,10 @@ const (
 	entityConvoIndex   = "CONVO_IDX"
 	entityMessage      = "MESSAGE"
 	entityPayment      = "PAYMENT"
+	entityNotification = "NOTIFICATION"
 )
+
+const gsi4NotificationDue = "NOTIFICATION"
 
 // BusinessPK returns the partition key for tenant-scoped data.
 func BusinessPK(businessID string) string {
@@ -96,4 +100,21 @@ func paymentGSI3SK(createdUTC time.Time, paymentID string) string {
 func paymentIdempotencySortKey(raw string) string {
 	sum := sha256.Sum256([]byte(strings.TrimSpace(raw)))
 	return "IDEMPOTENCY#PAY#" + hex.EncodeToString(sum[:])
+}
+
+func notificationSK(notificationID string) string {
+	return "NOTIF#" + notificationID
+}
+
+// GSI4 due-queue SK: sortable by scheduled instant (padded Unix nano).
+func notificationGSI4ScheduledSK(scheduledUTC time.Time, notificationID string) string {
+	return fmt.Sprintf("SCHED#%020d#%s", scheduledUTC.UTC().UnixNano(), notificationID)
+}
+
+func notificationGSI4SentSK(notificationID string) string {
+	return "SENT#" + notificationID
+}
+
+func notificationGSI4FailedSK(notificationID string) string {
+	return "FAILED#" + notificationID
 }

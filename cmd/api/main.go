@@ -18,12 +18,32 @@ import (
 	"github.com/parama/booking/internal/app/catalog"
 	"github.com/parama/booking/internal/app/conversations"
 	"github.com/parama/booking/internal/app/customers"
+	"github.com/parama/booking/internal/app/notifications"
 	"github.com/parama/booking/internal/app/payments"
 	"github.com/parama/booking/internal/app/scheduling"
 	"github.com/parama/booking/internal/app/tenancy"
+	"github.com/parama/booking/internal/domain"
 	"github.com/parama/booking/internal/httpapi"
 	"github.com/parama/booking/internal/phase0"
 )
+
+type notifyOnBookingCreated struct {
+	n *notifications.Application
+}
+
+func (w notifyOnBookingCreated) BookingCreated(ctx context.Context, b domain.Booking) error {
+	if w.n == nil {
+		return nil
+	}
+	return w.n.ScheduleBookingReminder(ctx, &b)
+}
+
+func (notifyOnBookingCreated) BookingLifecycle(ctx context.Context, b domain.Booking, transition string) error {
+	_ = ctx
+	_ = b
+	_ = transition
+	return nil
+}
 
 func main() {
 	ctx := context.Background()
@@ -45,8 +65,16 @@ func main() {
 	bookRepo := &dynamo.BookingRepository{Client: ddb, Table: table}
 	msgRepo := &dynamo.MessagingRepository{Client: ddb, Table: table}
 	payRepo := &dynamo.PaymentRepository{Client: ddb, Table: table}
+	notifRepo := &dynamo.NotificationRepository{Client: ddb, Table: table}
 
 	now := func() time.Time { return time.Now().UTC() }
+	whatsappOut := outbound.WhatsAppStub{}
+	notifApp := &notifications.Application{
+		Repo:      notifRepo,
+		Customers: custRepo,
+		Outbound:  whatsappOut,
+		Now:       now,
+	}
 	ten := &tenancy.Application{Businesses: bizRepo, Now: now}
 	cat := &catalog.Application{Services: svcRepo, Staff: stfRepo, Now: now}
 	crm := &customers.Application{Customers: custRepo, Now: now}
@@ -62,6 +90,7 @@ func main() {
 		Services:  svcRepo,
 		Customers: custRepo,
 		Payments:  payRepo,
+		Events:    notifyOnBookingCreated{n: notifApp},
 		Now:       now,
 	}
 
@@ -78,7 +107,7 @@ func main() {
 		Customers:         crm,
 		Bookings:          bk,
 		Tenancy:           ten,
-		Outbound:          outbound.WhatsAppStub{},
+		Outbound:          whatsappOut,
 		Now:               now,
 		WhatsAppAppSecret: os.Getenv("WHATSAPP_APP_SECRET"),
 	}
@@ -91,6 +120,7 @@ func main() {
 		Bookings:        bk,
 		Payments:        pay,
 		Conversations:   conv,
+		Notifications:   notifApp,
 		PlatformAPIKey:  os.Getenv("PLATFORM_API_KEY"),
 		SkipTenantCheck: os.Getenv("SKIP_TENANT_CHECK") == "true",
 	}
