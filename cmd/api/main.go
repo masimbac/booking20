@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"os"
 	"time"
 
@@ -46,6 +47,10 @@ func (notifyOnBookingCreated) BookingLifecycle(ctx context.Context, b domain.Boo
 }
 
 func main() {
+	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	})))
+
 	ctx := context.Background()
 	awscfg, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -113,21 +118,28 @@ func main() {
 	}
 
 	deps := &httpapi.Deps{
-		Tenancy:         ten,
-		Catalog:         cat,
-		Customers:       crm,
-		Scheduling:      sch,
-		Bookings:        bk,
-		Payments:        pay,
-		Conversations:   conv,
-		Notifications:   notifApp,
-		PlatformAPIKey:  os.Getenv("PLATFORM_API_KEY"),
-		SkipTenantCheck: os.Getenv("SKIP_TENANT_CHECK") == "true",
+		Tenancy:               ten,
+		Catalog:               cat,
+		Customers:             crm,
+		Scheduling:            sch,
+		Bookings:              bk,
+		Payments:              pay,
+		Conversations:         conv,
+		Notifications:         notifApp,
+		PlatformAPIKey:        os.Getenv("PLATFORM_API_KEY"),
+		RequirePlatformAPIKey: os.Getenv("REQUIRE_PLATFORM_API_KEY") == "true",
+		SkipTenantCheck:       os.Getenv("SKIP_TENANT_CHECK") == "true",
 	}
 
+	hard := httpapi.HardeningConfig{
+		CORSAllowedOrigins: httpapi.ParseCORSOrigins(os.Getenv("CORS_ALLOWED_ORIGINS")),
+		RateLimitMax:       httpapi.ParsePositiveInt(os.Getenv("HTTP_RATE_LIMIT_MAX"), 0),
+		RateLimitWindow:    httpapi.ParseDurationSeconds(os.Getenv("HTTP_RATE_LIMIT_WINDOW_SEC"), time.Minute),
+	}
 	r := httpapi.NewRouter(httpapi.RouterConfig{
-		Stage: os.Getenv("API_GATEWAY_STAGE"),
-		Phase: phase0.Phase(),
+		Stage:     os.Getenv("API_GATEWAY_STAGE"),
+		Phase:     phase0.Phase(),
+		Hardening: hard,
 	}, deps)
 	adapter := chiadapter.New(r)
 	lambda.Start(adapter.ProxyWithContext)

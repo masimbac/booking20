@@ -8,10 +8,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestHealth_OK(t *testing.T) {
-	r := NewRouter(RouterConfig{Phase: "8"}, nil)
+	r := NewRouter(RouterConfig{Phase: "9"}, nil)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -30,13 +31,13 @@ func TestHealth_OK(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if body["status"] != "ok" || body["phase"] != "8" {
+	if body["status"] != "ok" || body["phase"] != "9" {
 		t.Fatalf("body: %+v", body)
 	}
 }
 
 func TestHealth_StrippedStagePrefix(t *testing.T) {
-	r := NewRouter(RouterConfig{Phase: "8", Stage: "dev"}, nil)
+	r := NewRouter(RouterConfig{Phase: "9", Stage: "dev"}, nil)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -51,7 +52,7 @@ func TestHealth_StrippedStagePrefix(t *testing.T) {
 }
 
 func TestNotFound_ProblemJSON(t *testing.T) {
-	r := NewRouter(RouterConfig{Phase: "8"}, nil)
+	r := NewRouter(RouterConfig{Phase: "9"}, nil)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -73,7 +74,7 @@ func TestNotFound_ProblemJSON(t *testing.T) {
 }
 
 func TestStub501_JSON(t *testing.T) {
-	r := NewRouter(RouterConfig{Phase: "8"}, nil)
+	r := NewRouter(RouterConfig{Phase: "9"}, nil)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -89,6 +90,38 @@ func TestStub501_JSON(t *testing.T) {
 	}
 	if ct := res.Header.Get("Content-Type"); ct != contentTypeProblem {
 		t.Fatalf("Content-Type: %q", ct)
+	}
+}
+
+func TestRateLimit_ExcessRequests429(t *testing.T) {
+	r := NewRouter(RouterConfig{
+		Phase: "9",
+		Hardening: HardeningConfig{
+			RateLimitMax:    2,
+			RateLimitWindow: time.Minute,
+		},
+	}, nil)
+	srv := httptest.NewServer(r)
+	t.Cleanup(srv.Close)
+
+	path := srv.URL + "/v1/does-not-exist"
+	for i := 0; i < 2; i++ {
+		res, err := http.DefaultClient.Do(mustReq(t, http.MethodGet, path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		if res.StatusCode != http.StatusNotFound {
+			t.Fatalf("request %d: status %d", i, res.StatusCode)
+		}
+	}
+	res, err := http.DefaultClient.Do(mustReq(t, http.MethodGet, path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusTooManyRequests {
+		t.Fatalf("expected 429, got %d", res.StatusCode)
 	}
 }
 

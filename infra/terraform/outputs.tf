@@ -22,3 +22,8 @@ output "health_url" {
   description = "Invoke GET /v1/health on the deployed stage"
   value       = "https://${aws_api_gateway_rest_api.this.id}.execute-api.${var.aws_region}.amazonaws.com/${aws_api_gateway_stage.this.stage_name}/v1/health"
 }
+
+output "ops_alerts_topic_arn" {
+  description = "SNS topic for operational alarms (empty if alarm_notification_email not set)"
+  value       = try(aws_sns_topic.ops_alerts[0].arn, null)
+}

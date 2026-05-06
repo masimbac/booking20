@@ -1,7 +1,7 @@
 package httpapi
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -33,7 +33,7 @@ func ProblemRecoverer(next http.Handler) http.Handler {
 		defer func() {
 			if rv := recover(); rv != nil {
 				reqID := middleware.GetReqID(r.Context())
-				log.Printf("http panic request_id=%s err=%v path=%s", reqID, rv, r.URL.Path)
+				slog.Error("http panic", "request_id", reqID, "err", rv, "path", r.URL.Path)
 				WriteProblem(w, r, ProblemInput{
 					Status: http.StatusInternalServerError,
 					Title:  "Internal Server Error",

@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -9,8 +10,9 @@ import (
 
 // RouterConfig wires HTTP behavior for the API Lambda.
 type RouterConfig struct {
-	Phase string
-	Stage string
+	Phase     string
+	Stage     string
+	Hardening HardeningConfig
 }
 
 // NewRouter builds the chi mux. When deps.Tenancy and deps.Catalog are set, Phase 3
@@ -22,11 +24,19 @@ func NewRouter(cfg RouterConfig, deps *Deps) *chi.Mux {
 	}
 	r := chi.NewRouter()
 
+	var lim *slidingLimiter
+	if cfg.Hardening.RateLimitMax > 0 && cfg.Hardening.RateLimitWindow > 0 {
+		lim = newSlidingLimiter(cfg.Hardening.RateLimitMax, cfg.Hardening.RateLimitWindow)
+	}
+
 	r.Use(StripAPIStagePrefix(cfg.Stage))
 	r.Use(middleware.RequestID)
+	r.Use(structuredAccessLog)
 	r.Use(middleware.RealIP)
+	r.Use(rateLimitMiddleware(lim))
+	r.Use(corsMiddleware(cfg.Hardening.CORSAllowedOrigins))
+	r.Use(securityHeaders)
 	r.Use(ProblemRecoverer)
-	r.Use(middleware.Logger)
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/health", healthHandler(cfg.Phase))
@@ -80,7 +90,15 @@ func stub501(detail string) http.HandlerFunc {
 
 func (d *Deps) platformKeyMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if d.PlatformAPIKey == "" {
+		if d.RequirePlatformAPIKey && strings.TrimSpace(d.PlatformAPIKey) == "" {
+			WriteProblem(w, r, ProblemInput{
+				Status: http.StatusServiceUnavailable,
+				Title:  "Service Unavailable",
+				Detail: "platform API authentication is not configured",
+			})
+			return
+		}
+		if strings.TrimSpace(d.PlatformAPIKey) == "" {
 			next.ServeHTTP(w, r)
 			return
 		}

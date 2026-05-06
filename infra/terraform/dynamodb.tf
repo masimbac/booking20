@@ -1,5 +1,9 @@
 locals {
   name_prefix = "${var.project}-${var.environment}"
+  # PITR for DynamoDB: explicit var, or automatically on staging/prod-style environments.
+  dynamodb_pitr_enabled = var.dynamodb_point_in_time_recovery || contains(
+    ["staging", "stg", "prod", "production", "prd"], var.environment,
+  )
 }
 
 resource "aws_dynamodb_table" "core" {
@@ -82,7 +86,7 @@ resource "aws_dynamodb_table" "core" {
   }
 
   point_in_time_recovery {
-    enabled = var.dynamodb_point_in_time_recovery
+    enabled = local.dynamodb_pitr_enabled
   }
 
   server_side_encryption {

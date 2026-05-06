@@ -13,14 +13,15 @@ import (
 
 // Deps wires application services into HTTP handlers (Phase 3+).
 type Deps struct {
-	Tenancy         *tenancy.Application
-	Catalog         *catalog.Application
-	Customers       *customers.Application
-	Scheduling      *scheduling.Application
-	Bookings        *bookings.Application
-	Payments        *payments.Application
-	Conversations   *conversations.Application
-	Notifications   *notifications.Application
-	PlatformAPIKey  string
-	SkipTenantCheck bool
+	Tenancy               *tenancy.Application
+	Catalog               *catalog.Application
+	Customers             *customers.Application
+	Scheduling            *scheduling.Application
+	Bookings              *bookings.Application
+	Payments              *payments.Application
+	Conversations         *conversations.Application
+	Notifications         *notifications.Application
+	PlatformAPIKey        string
+	RequirePlatformAPIKey bool
+	SkipTenantCheck       bool
 }

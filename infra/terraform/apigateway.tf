@@ -59,6 +59,20 @@ resource "aws_api_gateway_stage" "this" {
   stage_name    = var.environment
 }
 
+resource "aws_api_gateway_method_settings" "stage_throttle" {
+  rest_api_id = aws_api_gateway_rest_api.this.id
+  stage_name  = aws_api_gateway_stage.this.stage_name
+  method_path = "*/*"
+
+  settings {
+    metrics_enabled        = true
+    logging_level          = "OFF"
+    data_trace_enabled     = false
+    throttling_rate_limit  = var.api_gateway_throttle_rate_limit
+    throttling_burst_limit = var.api_gateway_throttle_burst_limit
+  }
+}
+
 resource "aws_lambda_permission" "apigw" {
   statement_id  = "AllowExecutionFromAPIGateway"
   action        = "lambda:InvokeFunction"

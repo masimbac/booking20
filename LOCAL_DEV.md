@@ -90,6 +90,14 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 - **HTTP:** `GET|POST /businesses/{id}/notifications` (`?status=&cursor=&limit=` on GET). Platform **`POST /v1/platform/notifications/dispatch-due`** (same optional `X-Api-Key` gate as `POST /platform/businesses`) runs one batch of due sends — wire **EventBridge** (or similar) to call it on a schedule in your environment.
 - **Wiring:** `cmd/api` registers `notifyOnBookingCreated` with `bookings.Application.Events` so a successful `CreateBooking` schedules the reminder; conversations reuse the same `WhatsAppStub` outbound instance as notifications.
 
+## Phase 9 — Hardening and production readiness
+
+- **Logging:** JSON request logs via `log/slog` (`http_request`: `request_id`, `method`, `path`, `status`, `duration_ms`, …). Panics log through the same logger.
+- **HTTP:** Security headers (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`). Optional **CORS** allowlist (`CORS_ALLOWED_ORIGINS`, comma-separated). Optional per-IP **rate limit** in Lambda (`HTTP_RATE_LIMIT_MAX`, `HTTP_RATE_LIMIT_WINDOW_SEC`).
+- **Auth:** `REQUIRE_PLATFORM_API_KEY=true` fails closed (**503**) if `PLATFORM_API_KEY` is not configured — use in prod for platform routes.
+- **Terraform:** API Gateway stage **throttling** (`api_gateway_throttle_rate_limit` / `_burst_limit`); **CloudWatch** Lambda error + duration alarms (optional **SNS** email via `alarm_notification_email` — confirm subscription); optional **AWS Budgets** email (`cost_alert_email`, `monthly_budget_usd`). **DynamoDB PITR** toggled via `dynamodb_point_in_time_recovery` or auto for prod-like `environment` values.
+- **Docs:** `RUNBOOK.md` (on-call, RPO/RTO, rotations), `THREAT_MODEL.md` (trust boundaries). Example load script: `scripts/loadtest-health.sh`.
+
 Variables live in `infra/terraform/variables.tf` (`aws_region`, `project`, `environment`, etc.).
 
 ## CI
