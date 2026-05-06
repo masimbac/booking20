@@ -12,8 +12,10 @@ import (
 	chiadapter "github.com/awslabs/aws-lambda-go-api-proxy/chi"
 
 	"github.com/parama/booking/internal/adapters/dynamo"
+	"github.com/parama/booking/internal/adapters/outbound"
 	"github.com/parama/booking/internal/app/bookings"
 	"github.com/parama/booking/internal/app/catalog"
+	"github.com/parama/booking/internal/app/conversations"
 	"github.com/parama/booking/internal/app/customers"
 	"github.com/parama/booking/internal/app/scheduling"
 	"github.com/parama/booking/internal/app/tenancy"
@@ -39,6 +41,7 @@ func main() {
 	custRepo := &dynamo.CustomerRepository{Client: ddb, Table: table}
 	availRepo := &dynamo.AvailabilityRepository{Client: ddb, Table: table}
 	bookRepo := &dynamo.BookingRepository{Client: ddb, Table: table}
+	msgRepo := &dynamo.MessagingRepository{Client: ddb, Table: table}
 
 	now := func() time.Time { return time.Now().UTC() }
 	ten := &tenancy.Application{Businesses: bizRepo, Now: now}
@@ -58,12 +61,23 @@ func main() {
 		Now:       now,
 	}
 
+	conv := &conversations.Application{
+		Messaging:         msgRepo,
+		Customers:         crm,
+		Bookings:          bk,
+		Tenancy:           ten,
+		Outbound:          outbound.WhatsAppStub{},
+		Now:               now,
+		WhatsAppAppSecret: os.Getenv("WHATSAPP_APP_SECRET"),
+	}
+
 	deps := &httpapi.Deps{
 		Tenancy:         ten,
 		Catalog:         cat,
 		Customers:       crm,
 		Scheduling:      sch,
 		Bookings:        bk,
+		Conversations:   conv,
 		PlatformAPIKey:  os.Getenv("PLATFORM_API_KEY"),
 		SkipTenantCheck: os.Getenv("SKIP_TENANT_CHECK") == "true",
 	}

@@ -147,7 +147,11 @@ func registerPhase3Routes(r chi.Router, d *Deps) {
 	})
 
 	r.Route("/webhooks", func(r chi.Router) {
-		r.Post("/whatsapp", stub501("whatsapp webhook"))
+		if d.Conversations != nil {
+			r.Post("/whatsapp", d.postWhatsAppWebhook)
+		} else {
+			r.Post("/whatsapp", stub501("whatsapp webhook"))
+		}
 		r.Post("/payments/{provider}", stub501("payment provider webhook"))
 	})
 }
@@ -223,16 +227,29 @@ func registerBusinessScopedStubs(r chi.Router, d *Deps) {
 		})
 	})
 
-	r.Route("/conversations", func(r chi.Router) {
-		r.Post("/", stub501("ensure conversation"))
-		r.Route("/{conversationId}", func(r chi.Router) {
-			r.Get("/", stub501("get conversation"))
-			r.Route("/messages", func(r chi.Router) {
-				r.Get("/", stub501("list messages"))
-				r.Post("/", stub501("create outbound message"))
+	if d != nil && d.Conversations != nil {
+		r.Route("/conversations", func(r chi.Router) {
+			r.Post("/", d.postEnsureConversation)
+			r.Route("/{conversationId}", func(r chi.Router) {
+				r.Get("/", d.getConversationDoc)
+				r.Route("/messages", func(r chi.Router) {
+					r.Get("/", d.listConversationMessages)
+					r.Post("/", d.postConversationMessage)
+				})
 			})
 		})
-	})
+	} else {
+		r.Route("/conversations", func(r chi.Router) {
+			r.Post("/", stub501("ensure conversation"))
+			r.Route("/{conversationId}", func(r chi.Router) {
+				r.Get("/", stub501("get conversation"))
+				r.Route("/messages", func(r chi.Router) {
+					r.Get("/", stub501("list messages"))
+					r.Post("/", stub501("create outbound message"))
+				})
+			})
+		})
+	}
 
 	r.Route("/notifications", func(r chi.Router) {
 		r.Get("/", stub501("list notifications"))

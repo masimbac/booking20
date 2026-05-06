@@ -1,14 +1,20 @@
 package dynamo
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
-	entityBusiness = "BUSINESS"
-	entityService  = "SERVICE"
-	entityStaff    = "STAFF"
-	entityCustomer = "CUSTOMER"
-	entityAvail    = "AVAILABILITY"
-	entityBooking  = "BOOKING"
+	entityBusiness     = "BUSINESS"
+	entityService      = "SERVICE"
+	entityStaff        = "STAFF"
+	entityCustomer     = "CUSTOMER"
+	entityAvail        = "AVAILABILITY"
+	entityBooking      = "BOOKING"
+	entityConversation = "CONVERSATION"
+	entityConvoIndex   = "CONVO_IDX"
+	entityMessage      = "MESSAGE"
 )
 
 // BusinessPK returns the partition key for tenant-scoped data.
@@ -52,4 +58,21 @@ func bookingSK(bookingID string) string {
 // bookingGSI1SK is the range key on GSI1 (unique per booking via trailing id).
 func bookingGSI1SK(startUTC time.Time, bookingID string) string {
 	return "BOOKING_DATE#" + startUTC.UTC().Format(time.RFC3339Nano) + "#" + bookingID
+}
+
+func conversationSK(conversationID string) string {
+	return "CONVO#" + conversationID
+}
+
+// conversationIndexSK resolves ensure-conversation (one per business, customer, channel).
+func conversationIndexSK(customerID, channel string) string {
+	return "CONVOIDX#" + customerID + "#" + strings.ToLower(strings.TrimSpace(channel))
+}
+
+func messageSK(createdAt time.Time, messageID string) string {
+	return "MSG#" + createdAt.UTC().Format(time.RFC3339Nano) + "#" + messageID
+}
+
+func webhookDedupSK(provider string, providerMessageID string) string {
+	return "WHDEDUP#" + strings.ToLower(strings.TrimSpace(provider)) + "#" + strings.TrimSpace(providerMessageID)
 }

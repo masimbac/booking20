@@ -67,6 +67,13 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 - **HTTP:** `GET|POST /bookings`, `GET /bookings/{bookingId}`, transitions under `…/confirm`, `…/cancel`, `…/complete`, `…/no-show`. **Required header:** `Idempotency-Key` on `POST /bookings`. **List:** `?from=&to=` (RFC3339). Active when `Deps.Bookings` is wired (default in `cmd/api`).
 - **Events:** `bookings.EventSink` (default `NoopEvents` in Lambda; replace with EventBridge/outbox later).
 
+## Phase 6 — Conversations + WhatsApp webhook
+
+- **Domain:** `Conversation`, `Message`, `ConversationChannel` in `internal/domain`.
+- **App:** `internal/app/conversations` — ensure/get conversation, list/post messages, normalized webhook handling (`HELP` / `BOOK …` command router calling `bookings.CreateBooking`), optional **Meta** `X-Hub-Signature-256` when `WHATSAPP_APP_SECRET` is set.
+- **Adapters:** `MessagingRepository` (`internal/adapters/dynamo/conversation_repo.go`) — conversations under `BUSINESS#…` / `CONVO#…`, index `CONVOIDX#customer#channel`, messages under `CONVO#…` / `MSG#…`, dedup `WHDEDUP#…`; `internal/adapters/outbound/whatsapp_stub.go` implements `ChannelOutbound`.
+- **HTTP:** `POST /businesses/{id}/conversations`, `GET …/conversations/{conversationId}`, messages `GET|POST …/messages`; `POST /v1/webhooks/whatsapp` (no tenant header; JSON shape `business_id`, `from_e164`, `text`, optional `message_id`). Active when `Deps.Conversations` is wired (default in `cmd/api`).
+
 Variables live in `infra/terraform/variables.tf` (`aws_region`, `project`, `environment`, etc.).
 
 ## CI
