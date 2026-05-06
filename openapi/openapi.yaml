@@ -1,0 +1,1691 @@
+openapi: 3.0.3
+info:
+  title: Conversational Commerce Engine API
+  description: |
+    REST API for the Conversational Commerce Engine for Services (WhatsApp-first).
+    Tenant-scoped resources align with `BUSINESS#{businessId}` in DynamoDB.
+    See `PLANNING.md` for rationale; `ARCHITECTURE.md` for stack and boundaries.
+
+    **Errors:** `application/problem+json` (RFC 7807-style) with optional `business_id`, `request_id`.
+    **Idempotency:** send `Idempotency-Key` on POST that creates bookings or payment intents.
+  version: 0.1.0
+  contact:
+    name: API
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production (replace host)
+  - url: http://localhost:8080/v1
+    description: Local
+
+tags:
+  - name: Platform
+    description: Platform admin (tenant onboarding)
+  - name: Businesses
+    description: Business profile and settings
+  - name: Services
+    description: Service catalog
+  - name: Staff
+    description: Staff directory
+  - name: Customers
+    description: CRM
+  - name: Availability
+    description: Rules and bookable slots
+  - name: Bookings
+    description: Appointment lifecycle
+  - name: Payments
+    description: Payments and intents
+  - name: Conversations
+    description: Conversational sessions and messages
+  - name: Notifications
+    description: Scheduled and operator notifications
+  - name: Webhooks
+    description: Inbound provider webhooks (signature verification at edge)
+
+security:
+  - bearerAuth: []
+
+paths:
+  /platform/businesses:
+    post:
+      tags: [Platform]
+      summary: Register a new business (tenant)
+      operationId: platformRegisterBusiness
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterBusinessRequest"
+      responses:
+        "201":
+          description: Business created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Business"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+    get:
+      tags: [Businesses]
+      summary: Get business profile
+      operationId: getBusiness
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Business"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Businesses]
+      summary: Update business settings
+      operationId: patchBusiness
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchBusinessRequest"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Business"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/services:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+    get:
+      tags: [Services]
+      summary: List services
+      operationId: listServices
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+        - name: active_only
+          in: query
+          schema:
+            type: boolean
+            default: true
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceList"
+    post:
+      tags: [Services]
+      summary: Create service
+      operationId: createService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateServiceRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/services/{serviceId}:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/ServiceId"
+    get:
+      tags: [Services]
+      summary: Get service
+      operationId: getService
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Services]
+      summary: Update service
+      operationId: patchService
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchServiceRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Service"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+    delete:
+      tags: [Services]
+      summary: Delete or deactivate service
+      operationId: deleteService
+      responses:
+        "204":
+          description: No content
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /businesses/{businessId}/staff:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+    get:
+      tags: [Staff]
+      summary: List staff
+      operationId: listStaff
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StaffList"
+    post:
+      tags: [Staff]
+      summary: Create staff
+      operationId: createStaff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStaffRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Staff"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/staff/{staffId}:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/StaffId"
+    get:
+      tags: [Staff]
+      summary: Get staff
+      operationId: getStaff
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Staff"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Staff]
+      summary: Update staff
+      operationId: patchStaff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchStaffRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Staff"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+    delete:
+      tags: [Staff]
+      summary: Remove staff
+      operationId: deleteStaff
+      responses:
+        "204":
+          description: No content
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+
+  /businesses/{businessId}/customers:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+    get:
+      tags: [Customers]
+      summary: List customers
+      operationId: listCustomers
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CustomerList"
+    post:
+      tags: [Customers]
+      summary: Create customer
+      operationId: createCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCustomerRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/customers/by-phone:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+    get:
+      tags: [Customers]
+      summary: Find customer by E.164 phone (GSI2)
+      operationId: getCustomerByPhone
+      parameters:
+        - name: e164
+          in: query
+          required: true
+          description: Phone in E.164 format (e.g. +15551234567)
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /businesses/{businessId}/customers/{customerId}:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/CustomerId"
+    get:
+      tags: [Customers]
+      summary: Get customer
+      operationId: getCustomer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Customers]
+      summary: Update customer
+      operationId: patchCustomer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchCustomerRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Customer"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/availability/rules:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+    put:
+      tags: [Availability]
+      summary: Replace availability rules for the business
+      operationId: putAvailabilityRules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PutAvailabilityRulesRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AvailabilityRulesResponse"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/availability/slots:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+    get:
+      tags: [Availability]
+      summary: List bookable slots in a range
+      operationId: getAvailabilitySlots
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: service_id
+          in: query
+          schema:
+            $ref: "#/components/schemas/ServiceId"
+        - name: staff_id
+          in: query
+          schema:
+            $ref: "#/components/schemas/StaffId"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlotList"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/bookings:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+    get:
+      tags: [Bookings]
+      summary: List bookings in a time range (GSI1)
+      operationId: listBookings
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingList"
+    post:
+      tags: [Bookings]
+      summary: Create booking
+      operationId: createBooking
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/bookings/{bookingId}:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/BookingId"
+    get:
+      tags: [Bookings]
+      summary: Get booking
+      operationId: getBooking
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /businesses/{businessId}/bookings/{bookingId}/confirm:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/BookingId"
+    post:
+      tags: [Bookings]
+      summary: Transition booking to confirmed
+      operationId: confirmBooking
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/bookings/{bookingId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/BookingId"
+    post:
+      tags: [Bookings]
+      summary: Cancel booking
+      operationId: cancelBooking
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelBookingRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/bookings/{bookingId}/complete:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/BookingId"
+    post:
+      tags: [Bookings]
+      summary: Mark booking completed
+      operationId: completeBooking
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/bookings/{bookingId}/no-show:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/BookingId"
+    post:
+      tags: [Bookings]
+      summary: Mark booking as no-show
+      operationId: noShowBooking
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Booking"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/bookings/{bookingId}/payments:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/BookingId"
+    get:
+      tags: [Payments]
+      summary: List payments for a booking (GSI3)
+      operationId: listPaymentsForBooking
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentList"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /businesses/{businessId}/payments:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+    post:
+      tags: [Payments]
+      summary: Create payment intent / record
+      operationId: createPayment
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePaymentRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/payments/{paymentId}:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/PaymentId"
+    get:
+      tags: [Payments]
+      summary: Get payment
+      operationId: getPayment
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Payment"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /businesses/{businessId}/conversations:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+    post:
+      tags: [Conversations]
+      summary: Open or get-or-create conversation
+      operationId: ensureConversation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnsureConversationRequest"
+      responses:
+        "200":
+          description: Existing conversation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/conversations/{conversationId}:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/ConversationId"
+    get:
+      tags: [Conversations]
+      summary: Get conversation metadata
+      operationId: getConversation
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Conversation"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /businesses/{businessId}/conversations/{conversationId}/messages:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+      - $ref: "#/components/parameters/ConversationId"
+    get:
+      tags: [Conversations]
+      summary: List messages
+      operationId: listMessages
+      parameters:
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageList"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [Conversations]
+      summary: Send outbound message (admin/system)
+      operationId: createOutboundMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMessageRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /businesses/{businessId}/notifications:
+    parameters:
+      - $ref: "#/components/parameters/BusinessId"
+    get:
+      tags: [Notifications]
+      summary: List notifications
+      operationId: listNotifications
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/NotificationStatus"
+        - $ref: "#/components/parameters/Cursor"
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationList"
+    post:
+      tags: [Notifications]
+      summary: Schedule notification
+      operationId: createNotification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateNotificationRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+
+  /webhooks/whatsapp:
+    post:
+      tags: [Webhooks]
+      summary: WhatsApp provider webhook
+      operationId: webhookWhatsApp
+      description: Verify provider signature at the edge. Request body is provider-specific.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Acknowledged
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /webhooks/payments/{provider}:
+    post:
+      tags: [Webhooks]
+      summary: Payment provider webhook
+      operationId: webhookPaymentProvider
+      security: []
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+            example: stripe
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Acknowledged
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Placeholder — replace with your auth scheme (JWT, Cognito, etc.)
+
+  parameters:
+    BusinessId:
+      name: businessId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/BusinessId"
+    ServiceId:
+      name: serviceId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/ServiceId"
+    StaffId:
+      name: staffId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/StaffId"
+    CustomerId:
+      name: customerId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/CustomerId"
+    BookingId:
+      name: bookingId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/BookingId"
+    PaymentId:
+      name: paymentId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/PaymentId"
+    ConversationId:
+      name: conversationId
+      in: path
+      required: true
+      schema:
+        $ref: "#/components/schemas/ConversationId"
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+      description: Opaque pagination cursor
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema:
+        type: string
+      description: Unique key for safe retries on booking/payment creation
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    NotFound:
+      description: Resource not found
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Conflict:
+      description: Conflict (e.g. domain invariant, duplicate idempotency conflict)
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    Unprocessable:
+      description: Validation or domain rule failure
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+    Problem:
+      type: object
+      description: RFC 7807 Problem Details (extended)
+      properties:
+        type:
+          type: string
+          format: uri
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type: string
+        instance:
+          type: string
+        business_id:
+          $ref: "#/components/schemas/BusinessId"
+        request_id:
+          type: string
+      additionalProperties: true
+
+    BusinessId:
+      type: string
+      description: Tenant / business identifier (ULID recommended)
+      example: 01hq8vqz5yxjq9x9k5g9v9xq9x
+    ServiceId:
+      type: string
+      example: 01hq8vqz5yxjq9x9k5g9v9xq9y
+    StaffId:
+      type: string
+      example: 01hq8vqz5yxjq9x9k5g9v9xq9z
+    CustomerId:
+      type: string
+      example: 01hq8vqz5yxjq9x9k5g9v9xq90
+    BookingId:
+      type: string
+      example: 01hq8vqz5yxjq9x9k5g9v9xq91
+    PaymentId:
+      type: string
+      example: 01hq8vqz5yxjq9x9k5g9v9xq92
+    ConversationId:
+      type: string
+      example: 01hq8vqz5yxjq9x9k5g9v9xq93
+
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: string
+          description: Decimal amount as string
+          example: "49.99"
+        currency:
+          type: string
+          description: ISO 4217 code
+          example: USD
+          minLength: 3
+          maxLength: 3
+
+    BusinessStatus:
+      type: string
+      enum: [active, suspended]
+
+    RegisterBusinessRequest:
+      type: object
+      required: [name, timezone]
+      properties:
+        name:
+          type: string
+        legal_name:
+          type: string
+        timezone:
+          type: string
+          description: IANA time zone
+          example: America/New_York
+        contact:
+          type: object
+          additionalProperties: true
+          description: Email, phone, address — shape TBD
+
+    Business:
+      type: object
+      required: [id, name, timezone, status, created_at, updated_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/BusinessId"
+        name:
+          type: string
+        legal_name:
+          type: string
+        timezone:
+          type: string
+        contact:
+          type: object
+          additionalProperties: true
+        status:
+          $ref: "#/components/schemas/BusinessStatus"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PatchBusinessRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        legal_name:
+          type: string
+        timezone:
+          type: string
+        contact:
+          type: object
+          additionalProperties: true
+        status:
+          $ref: "#/components/schemas/BusinessStatus"
+
+    CreateServiceRequest:
+      type: object
+      required: [name, duration_minutes]
+      properties:
+        name:
+          type: string
+        duration_minutes:
+          type: integer
+          minimum: 1
+        price:
+          $ref: "#/components/schemas/Money"
+        active:
+          type: boolean
+          default: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    PatchServiceRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        duration_minutes:
+          type: integer
+          minimum: 1
+        price:
+          $ref: "#/components/schemas/Money"
+        active:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Service:
+      type: object
+      required: [id, business_id, name, duration_minutes, active, created_at, updated_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/ServiceId"
+        business_id:
+          $ref: "#/components/schemas/BusinessId"
+        name:
+          type: string
+        duration_minutes:
+          type: integer
+        price:
+          $ref: "#/components/schemas/Money"
+        active:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ServiceList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Service"
+        next_cursor:
+          type: string
+
+    CreateStaffRequest:
+      type: object
+      required: [display_name]
+      properties:
+        display_name:
+          type: string
+        role:
+          type: string
+        service_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceId"
+        active:
+          type: boolean
+          default: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    PatchStaffRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+        role:
+          type: string
+        service_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceId"
+        active:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+
+    Staff:
+      type: object
+      required: [id, business_id, display_name, active, created_at, updated_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/StaffId"
+        business_id:
+          $ref: "#/components/schemas/BusinessId"
+        display_name:
+          type: string
+        role:
+          type: string
+        service_ids:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceId"
+        active:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    StaffList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Staff"
+        next_cursor:
+          type: string
+
+    CreateCustomerRequest:
+      type: object
+      required: [phone_e164]
+      properties:
+        phone_e164:
+          type: string
+          example: "+15551234567"
+        display_name:
+          type: string
+        preferences:
+          type: object
+          additionalProperties: true
+        marketing_opt_in:
+          type: boolean
+          default: false
+
+    PatchCustomerRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+        preferences:
+          type: object
+          additionalProperties: true
+        marketing_opt_in:
+          type: boolean
+
+    Customer:
+      type: object
+      required: [id, business_id, phone_e164, created_at, updated_at]
+      properties:
+        id:
+          $ref: "#/components/schemas/CustomerId"
+        business_id:
+          $ref: "#/components/schemas/BusinessId"
+        phone_e164:
+          type: string
+        display_name:
+          type: string
+        preferences:
+          type: object
+          additionalProperties: true
+        marketing_opt_in:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CustomerList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Customer"
+        next_cursor:
+          type: string
+
+    AvailabilityRule:
+      type: object
+      description: Abstract rule row — refine with RRULE or weekly blocks in implementation
+      properties:
+        staff_id:
+          $ref: "#/components/schemas/StaffId"
+        service_id:
+          $ref: "#/components/schemas/ServiceId"
+        day_of_week:
+          type: integer
+          minimum: 0
+          maximum: 6
+        start_local:
+          type: string
+          example: "09:00"
+        end_local:
+          type: string
+          example: "17:00"
+        metadata:
+          type: object
+          additionalProperties: true
+
+    PutAvailabilityRulesRequest:
+      type: object
+      required: [rules]
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/AvailabilityRule"
+
+    AvailabilityRulesResponse:
+      type: object
+      required: [rules, updated_at]
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/AvailabilityRule"
+        updated_at:
+          type: string
+          format: date-time
+
+    TimeSlot:
+      type: object
+      required: [start_at, end_at]
+      properties:
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        staff_id:
+          $ref: "#/components/schemas/StaffId"
+        service_id:
+          $ref: "#/components/schemas/ServiceId"
+
+    SlotList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimeSlot"
+
+    BookingStatus:
+      type: string
+      enum: [created, confirmed, completed, cancelled, no_show]
+
+    CreateBookingRequest:
+      type: object
+      required: [customer_id, service_id, start_at]
+      properties:
+        customer_id:
+          $ref: "#/components/schemas/CustomerId"
+        service_id:
+          $ref: "#/components/schemas/ServiceId"
+        staff_id:
+          $ref: "#/components/schemas/StaffId"
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+          description: Optional if derived from service duration
+
+    CancelBookingRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+
+    Booking:
+      type: object
+      required:
+        - id
+        - business_id
+        - customer_id
+        - service_id
+        - start_at
+        - end_at
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: "#/components/schemas/BookingId"
+        business_id:
+          $ref: "#/components/schemas/BusinessId"
+        customer_id:
+          $ref: "#/components/schemas/CustomerId"
+        service_id:
+          $ref: "#/components/schemas/ServiceId"
+        staff_id:
+          $ref: "#/components/schemas/StaffId"
+        start_at:
+          type: string
+          format: date-time
+        end_at:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/BookingStatus"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    BookingList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Booking"
+        next_cursor:
+          type: string
+
+    PaymentKind:
+      type: string
+      enum: [deposit, full, balance]
+
+    PaymentStatus:
+      type: string
+      enum: [pending, succeeded, failed, refunded]
+
+    CreatePaymentRequest:
+      type: object
+      required: [booking_id, amount, kind]
+      properties:
+        booking_id:
+          $ref: "#/components/schemas/BookingId"
+        amount:
+          $ref: "#/components/schemas/Money"
+        kind:
+          $ref: "#/components/schemas/PaymentKind"
+        provider:
+          type: string
+          example: stripe
+        return_url:
+          type: string
+          format: uri
+
+    Payment:
+      type: object
+      required:
+        - id
+        - business_id
+        - booking_id
+        - amount
+        - kind
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: "#/components/schemas/PaymentId"
+        business_id:
+          $ref: "#/components/schemas/BusinessId"
+        booking_id:
+          $ref: "#/components/schemas/BookingId"
+        amount:
+          $ref: "#/components/schemas/Money"
+        kind:
+          $ref: "#/components/schemas/PaymentKind"
+        provider:
+          type: string
+        external_ref:
+          type: string
+        checkout_url:
+          type: string
+          format: uri
+        status:
+          $ref: "#/components/schemas/PaymentStatus"
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PaymentList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payment"
+
+    ConversationChannel:
+      type: string
+      enum: [whatsapp]
+
+    EnsureConversationRequest:
+      type: object
+      required: [customer_id, channel]
+      properties:
+        customer_id:
+          $ref: "#/components/schemas/CustomerId"
+        channel:
+          $ref: "#/components/schemas/ConversationChannel"
+        provider_thread_id:
+          type: string
+
+    Conversation:
+      type: object
+      required:
+        - id
+        - business_id
+        - customer_id
+        - channel
+        - state
+        - last_activity_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: "#/components/schemas/ConversationId"
+        business_id:
+          $ref: "#/components/schemas/BusinessId"
+        customer_id:
+          $ref: "#/components/schemas/CustomerId"
+        channel:
+          $ref: "#/components/schemas/ConversationChannel"
+        provider_thread_id:
+          type: string
+        state:
+          type: string
+          description: Opaque flow state key (e.g. booking step)
+        last_activity_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MessageDirection:
+      type: string
+      enum: [inbound, outbound]
+
+    Message:
+      type: object
+      required:
+        - id
+        - conversation_id
+        - direction
+        - body
+        - created_at
+      properties:
+        id:
+          type: string
+        conversation_id:
+          $ref: "#/components/schemas/ConversationId"
+        direction:
+          $ref: "#/components/schemas/MessageDirection"
+        body:
+          type: string
+        structured:
+          type: object
+          additionalProperties: true
+        provider_message_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    MessageList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+        next_cursor:
+          type: string
+
+    CreateMessageRequest:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+        structured:
+          type: object
+          additionalProperties: true
+
+    NotificationKind:
+      type: string
+      enum: [reminder, confirmation, promo]
+
+    NotificationStatus:
+      type: string
+      enum: [scheduled, sent, failed]
+
+    CreateNotificationRequest:
+      type: object
+      required: [kind, channel, scheduled_at]
+      properties:
+        kind:
+          $ref: "#/components/schemas/NotificationKind"
+        channel:
+          type: string
+          example: whatsapp
+        scheduled_at:
+          type: string
+          format: date-time
+        customer_id:
+          $ref: "#/components/schemas/CustomerId"
+        booking_id:
+          $ref: "#/components/schemas/BookingId"
+        payload:
+          type: object
+          additionalProperties: true
+
+    Notification:
+      type: object
+      required:
+        - id
+        - business_id
+        - kind
+        - channel
+        - status
+        - scheduled_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+        business_id:
+          $ref: "#/components/schemas/BusinessId"
+        kind:
+          $ref: "#/components/schemas/NotificationKind"
+        channel:
+          type: string
+        status:
+          $ref: "#/components/schemas/NotificationStatus"
+        scheduled_at:
+          type: string
+          format: date-time
+        customer_id:
+          $ref: "#/components/schemas/CustomerId"
+        booking_id:
+          $ref: "#/components/schemas/BookingId"
+        payload:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    NotificationList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Notification"
+        next_cursor:
+          type: string

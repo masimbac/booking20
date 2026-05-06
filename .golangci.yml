@@ -1,0 +1,27 @@
+run:
+  timeout: 3m
+  tests: true
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - misspell
+    - gocritic
+    - revive
+    - unconvert
+    - bodyclose
+    - noctx
+
+linters-settings:
+  revive:
+    rules:
+      - name: blank-imports
+      - name: var-naming
+      - name: exported
+
+issues:
+  max-same-issues: 50

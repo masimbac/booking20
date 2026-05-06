@@ -1,0 +1,27 @@
+# Build artifacts
+bin/
+dist/
+bootstrap
+*.zip
+
+# Go
+*.exe
+*.test
+*.out
+coverage.out
+vendor/
+.bin/
+
+# Env / IDE
+.env
+.env.*
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
