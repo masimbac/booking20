@@ -13,10 +13,12 @@ import (
 
 	"github.com/parama/booking/internal/adapters/dynamo"
 	"github.com/parama/booking/internal/adapters/outbound"
+	"github.com/parama/booking/internal/adapters/paymentstub"
 	"github.com/parama/booking/internal/app/bookings"
 	"github.com/parama/booking/internal/app/catalog"
 	"github.com/parama/booking/internal/app/conversations"
 	"github.com/parama/booking/internal/app/customers"
+	"github.com/parama/booking/internal/app/payments"
 	"github.com/parama/booking/internal/app/scheduling"
 	"github.com/parama/booking/internal/app/tenancy"
 	"github.com/parama/booking/internal/httpapi"
@@ -42,6 +44,7 @@ func main() {
 	availRepo := &dynamo.AvailabilityRepository{Client: ddb, Table: table}
 	bookRepo := &dynamo.BookingRepository{Client: ddb, Table: table}
 	msgRepo := &dynamo.MessagingRepository{Client: ddb, Table: table}
+	payRepo := &dynamo.PaymentRepository{Client: ddb, Table: table}
 
 	now := func() time.Time { return time.Now().UTC() }
 	ten := &tenancy.Application{Businesses: bizRepo, Now: now}
@@ -58,7 +61,16 @@ func main() {
 		Bookings:  bookRepo,
 		Services:  svcRepo,
 		Customers: custRepo,
+		Payments:  payRepo,
 		Now:       now,
+	}
+
+	pay := &payments.Application{
+		Payments: payRepo,
+		Bookings: bookRepo,
+		Services: svcRepo,
+		Provider: paymentstub.Provider{},
+		Now:      now,
 	}
 
 	conv := &conversations.Application{
@@ -77,6 +89,7 @@ func main() {
 		Customers:       crm,
 		Scheduling:      sch,
 		Bookings:        bk,
+		Payments:        pay,
 		Conversations:   conv,
 		PlatformAPIKey:  os.Getenv("PLATFORM_API_KEY"),
 		SkipTenantCheck: os.Getenv("SKIP_TENANT_CHECK") == "true",

@@ -74,6 +74,14 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 - **Adapters:** `MessagingRepository` (`internal/adapters/dynamo/conversation_repo.go`) — conversations under `BUSINESS#…` / `CONVO#…`, index `CONVOIDX#customer#channel`, messages under `CONVO#…` / `MSG#…`, dedup `WHDEDUP#…`; `internal/adapters/outbound/whatsapp_stub.go` implements `ChannelOutbound`.
 - **HTTP:** `POST /businesses/{id}/conversations`, `GET …/conversations/{conversationId}`, messages `GET|POST …/messages`; `POST /v1/webhooks/whatsapp` (no tenant header; JSON shape `business_id`, `from_e164`, `text`, optional `message_id`). Active when `Deps.Conversations` is wired (default in `cmd/api`).
 
+## Phase 7 — Payments (GSI3 + confirm gate)
+
+- **Domain:** `Payment`, `PaymentKind`, `PaymentStatus`, and `SucceededPaymentSatisfiesConfirm` policy in `internal/domain/payment.go` (**full** pay must match catalog **Money** when the service has a price; otherwise a succeeded **full** or **deposit** suffices).
+- **App:** `internal/app/payments` — create intent via `PaymentCheckoutProvider` (stub in `internal/adapters/paymentstub`), list/get, webhook apply.
+- **Adapters:** `PaymentRepository` — `BUSINESS#` / `PAYMENT#…`, **GSI3** `BOOKING#…` / `PAYMENT#…`, idempotency keys `IDEMPOTENCY#PAY#…` (separate namespace from booking idempotency).
+- **Bookings:** `ConfirmBooking` calls `confirmPaymentGate` when `Payments` repository is wired (always in `cmd/api`): confirmation **409** until policy is satisfied.
+- **HTTP:** `POST|GET /businesses/{id}/payments`, `GET …/bookings/{bookingId}/payments`, `POST /v1/webhooks/payments/{provider}` — normalized JSON `business_id`, `payment_id`, `status`, `external_ref`; optional **`PAYMENT_WEBHOOK_SECRET`** + `X-Payment-Signature: sha256=…`.
+
 Variables live in `infra/terraform/variables.tf` (`aws_region`, `project`, `environment`, etc.).
 
 ## CI

@@ -35,6 +35,7 @@ type Application struct {
 	Bookings  ports.BookingRepository
 	Services  ports.ServiceRepository
 	Customers ports.CustomerRepository
+	Payments  ports.PaymentRepository
 	Events    EventSink
 	Now       func() time.Time
 }
@@ -147,6 +148,24 @@ func (a *Application) assertNoStaffOverlap(ctx context.Context, businessID, staf
 	return nil
 }
 
+func (a *Application) confirmPaymentGate(ctx context.Context, businessID string, b *domain.Booking) error {
+	if a.Payments == nil {
+		return nil
+	}
+	pays, _, err := a.Payments.ListByBooking(ctx, businessID, b.ID, ports.ListPaymentsOptions{Limit: 200})
+	if err != nil {
+		return err
+	}
+	svc, err := a.Services.Get(ctx, businessID, b.ServiceID)
+	if err != nil {
+		return err
+	}
+	if !domain.SucceededPaymentSatisfiesConfirm(svc.Price, pays) {
+		return fmt.Errorf("%w: confirm requires a succeeded payment that satisfies catalog policy (full payment matching list price when set, otherwise a succeeded full or deposit)", domain.ErrConflict)
+	}
+	return nil
+}
+
 // ListBookings returns bookings whose start time falls in [fromUTC, toUTC] on GSI1.
 func (a *Application) ListBookings(ctx context.Context, businessID string, fromUTC, toUTC time.Time, opt ports.ListBookingsOptions) ([]domain.Booking, string, error) {
 	return a.Bookings.ListByStartRange(ctx, businessID, fromUTC, toUTC, opt)
@@ -164,6 +183,9 @@ func (a *Application) ConfirmBooking(ctx context.Context, businessID, bookingID 
 		return nil, err
 	}
 	if err := a.assertNoStaffOverlap(ctx, businessID, b.StaffID, b.StartAt, b.EndAt, b.ID); err != nil {
+		return nil, err
+	}
+	if err := a.confirmPaymentGate(ctx, businessID, b); err != nil {
 		return nil, err
 	}
 	if err := b.Confirm(a.now()); err != nil {

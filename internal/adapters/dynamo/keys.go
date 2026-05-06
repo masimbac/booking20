@@ -1,6 +1,8 @@
 package dynamo
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 	"time"
 )
@@ -15,6 +17,7 @@ const (
 	entityConversation = "CONVERSATION"
 	entityConvoIndex   = "CONVO_IDX"
 	entityMessage      = "MESSAGE"
+	entityPayment      = "PAYMENT"
 )
 
 // BusinessPK returns the partition key for tenant-scoped data.
@@ -75,4 +78,22 @@ func messageSK(createdAt time.Time, messageID string) string {
 
 func webhookDedupSK(provider string, providerMessageID string) string {
 	return "WHDEDUP#" + strings.ToLower(strings.TrimSpace(provider)) + "#" + strings.TrimSpace(providerMessageID)
+}
+
+func paymentSK(paymentID string) string {
+	return "PAYMENT#" + paymentID
+}
+
+func paymentGSI3PK(bookingID string) string {
+	return "BOOKING#" + bookingID
+}
+
+func paymentGSI3SK(createdUTC time.Time, paymentID string) string {
+	return "PAYMENT#" + createdUTC.UTC().Format(time.RFC3339Nano) + "#" + paymentID
+}
+
+// paymentIdempotencySortKey namespaces payment idempotency keys apart from booking idempotency rows.
+func paymentIdempotencySortKey(raw string) string {
+	sum := sha256.Sum256([]byte(strings.TrimSpace(raw)))
+	return "IDEMPOTENCY#PAY#" + hex.EncodeToString(sum[:])
 }

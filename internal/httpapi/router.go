@@ -152,7 +152,11 @@ func registerPhase3Routes(r chi.Router, d *Deps) {
 		} else {
 			r.Post("/whatsapp", stub501("whatsapp webhook"))
 		}
-		r.Post("/payments/{provider}", stub501("payment provider webhook"))
+		if d.Payments != nil {
+			r.Post("/payments/{provider}", d.postPaymentProviderWebhook)
+		} else {
+			r.Post("/payments/{provider}", stub501("payment provider webhook"))
+		}
 	})
 }
 
@@ -199,7 +203,11 @@ func registerBusinessScopedStubs(r chi.Router, d *Deps) {
 				r.Post("/complete", d.postCompleteBooking)
 				r.Post("/no-show", d.postNoShowBooking)
 				r.Route("/payments", func(r chi.Router) {
-					r.Get("/", stub501("list payments for booking"))
+					if d != nil && d.Payments != nil {
+						r.Get("/", d.listPaymentsForBooking)
+					} else {
+						r.Get("/", stub501("list payments for booking"))
+					}
 				})
 			})
 		})
@@ -221,10 +229,17 @@ func registerBusinessScopedStubs(r chi.Router, d *Deps) {
 	}
 
 	r.Route("/payments", func(r chi.Router) {
-		r.Post("/", stub501("create payment"))
-		r.Route("/{paymentId}", func(r chi.Router) {
-			r.Get("/", stub501("get payment"))
-		})
+		if d != nil && d.Payments != nil {
+			r.Post("/", d.postPayment)
+			r.Route("/{paymentId}", func(r chi.Router) {
+				r.Get("/", d.getPayment)
+			})
+		} else {
+			r.Post("/", stub501("create payment"))
+			r.Route("/{paymentId}", func(r chi.Router) {
+				r.Get("/", stub501("get payment"))
+			})
+		}
 	})
 
 	if d != nil && d.Conversations != nil {

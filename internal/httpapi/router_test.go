@@ -11,7 +11,7 @@ import (
 )
 
 func TestHealth_OK(t *testing.T) {
-	r := NewRouter(RouterConfig{Phase: "6"}, nil)
+	r := NewRouter(RouterConfig{Phase: "7"}, nil)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -30,13 +30,13 @@ func TestHealth_OK(t *testing.T) {
 	if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if body["status"] != "ok" || body["phase"] != "6" {
+	if body["status"] != "ok" || body["phase"] != "7" {
 		t.Fatalf("body: %+v", body)
 	}
 }
 
 func TestHealth_StrippedStagePrefix(t *testing.T) {
-	r := NewRouter(RouterConfig{Phase: "6", Stage: "dev"}, nil)
+	r := NewRouter(RouterConfig{Phase: "7", Stage: "dev"}, nil)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -51,7 +51,7 @@ func TestHealth_StrippedStagePrefix(t *testing.T) {
 }
 
 func TestNotFound_ProblemJSON(t *testing.T) {
-	r := NewRouter(RouterConfig{Phase: "6"}, nil)
+	r := NewRouter(RouterConfig{Phase: "7"}, nil)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
@@ -73,7 +73,7 @@ func TestNotFound_ProblemJSON(t *testing.T) {
 }
 
 func TestStub501_JSON(t *testing.T) {
-	r := NewRouter(RouterConfig{Phase: "6"}, nil)
+	r := NewRouter(RouterConfig{Phase: "7"}, nil)
 	srv := httptest.NewServer(r)
 	t.Cleanup(srv.Close)
 
