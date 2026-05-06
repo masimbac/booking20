@@ -23,6 +23,12 @@ resource "aws_lambda_function" "api" {
   memory_size = 128
   timeout     = 10
 
+  environment {
+    variables = {
+      API_GATEWAY_STAGE = var.environment
+    }
+  }
+
   depends_on = [
     aws_cloudwatch_log_group.api_lambda,
   ]

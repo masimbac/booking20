@@ -31,7 +31,14 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 2. From the repo root: `make terraform-init` (add `-migrate-state` / backend config when you introduce remote state).
 3. `make terraform-validate` — ensures `bin/bootstrap` exists and configuration is valid (no AWS calls).
 4. `make terraform-plan` then `make terraform-apply` — creates DynamoDB `core` table (4 GSIs), API Lambda (`provided.al2023` **arm64**), REST API `GET {stage}/v1/health` → Lambda.
-5. After apply, open the **`health_url`** output (or `terraform -chdir=infra/terraform output health_url`) — expect JSON `{"status":"ok","phase":"1"}`.
+5. After apply, open the **`health_url`** output (or `terraform -chdir=infra/terraform output health_url`) — expect JSON `{"status":"ok","phase":"…"}`.
+
+## Phase 2 — HTTP shell (chi + problem+json)
+
+- **Router:** `internal/httpapi` — chi with stage strip (`API_GATEWAY_STAGE`), request ID, **recover → 500 problem+json**, chi **Logger**, routes under `/v1`.
+- **Errors:** `application/problem+json` (`WriteProblem`, `WriteConflict`, `WriteUnprocessable`); 404/405/501 stubs match **OpenAPI** layout.
+- **Lambda entry:** `cmd/api` uses **`aws-lambda-go-api-proxy/chi`** to forward API Gateway proxy events to the mux.
+- **Apply:** redeploy Lambda after `terraform apply` so the new binary and env var are live (`make terraform-apply`).
 
 Variables live in `infra/terraform/variables.tf` (`aws_region`, `project`, `environment`, etc.).
 
