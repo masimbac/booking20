@@ -26,6 +26,7 @@ resource "aws_lambda_function" "api" {
   environment {
     variables = {
       API_GATEWAY_STAGE = var.environment
+      CORE_TABLE_NAME   = aws_dynamodb_table.core.name
     }
   }
 

@@ -1,7 +1,6 @@
 package httpapi
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -10,13 +9,16 @@ import (
 
 // RouterConfig wires HTTP behavior for the API Lambda.
 type RouterConfig struct {
-	// Stage is the API Gateway stage name (e.g. dev). When set, /{stage} is stripped from incoming paths.
 	Phase string
 	Stage string
 }
 
-// NewRouter builds the chi mux for REST + Lambda (Phase 2: stubs + health only).
-func NewRouter(cfg RouterConfig) *chi.Mux {
+// NewRouter builds the chi mux. When deps.Tenancy and deps.Catalog are set, Phase 3
+// tenancy + catalog routes are registered; otherwise Phase 2 stubs are used.
+func NewRouter(cfg RouterConfig, deps *Deps) *chi.Mux {
+	if deps == nil {
+		deps = &Deps{}
+	}
 	r := chi.NewRouter()
 
 	r.Use(StripAPIStagePrefix(cfg.Stage))
@@ -27,7 +29,11 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/health", healthHandler(cfg.Phase))
-		registerStubRoutes(r)
+		if deps.Tenancy != nil && deps.Catalog != nil {
+			registerPhase3Routes(r, deps)
+		} else {
+			registerStubRoutes(r)
+		}
 	})
 
 	r.NotFound(notFoundHandler)
@@ -38,8 +44,7 @@ func NewRouter(cfg RouterConfig) *chi.Mux {
 
 func healthHandler(phase string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, http.StatusOK, map[string]string{
 			"status": "ok",
 			"phase":  phase,
 		})
@@ -72,6 +77,136 @@ func stub501(detail string) http.HandlerFunc {
 	}
 }
 
+func (d *Deps) platformKeyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if d.PlatformAPIKey == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		if r.Header.Get("X-Api-Key") != d.PlatformAPIKey {
+			WriteProblem(w, r, ProblemInput{
+				Status: http.StatusUnauthorized,
+				Title:  "Unauthorized",
+				Detail: "invalid or missing platform credentials",
+			})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (d *Deps) tenantMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if d.SkipTenantCheck {
+			next.ServeHTTP(w, r)
+			return
+		}
+		bid := chi.URLParam(r, "businessId")
+		if got := r.Header.Get("X-Tenant-Business-Id"); got != bid {
+			WriteProblem(w, r, ProblemInput{
+				Status: http.StatusForbidden,
+				Title:  "Forbidden",
+				Detail: "X-Tenant-Business-Id header must match businessId in the path",
+			})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func registerPhase3Routes(r chi.Router, d *Deps) {
+	r.With(d.platformKeyMiddleware).Post("/platform/businesses", d.postPlatformBusinesses)
+
+	r.Route("/businesses/{businessId}", func(r chi.Router) {
+		r.Use(d.tenantMiddleware)
+		r.Get("/", d.getBusiness)
+		r.Patch("/", d.patchBusiness)
+
+		r.Route("/services", func(r chi.Router) {
+			r.Get("/", d.listServices)
+			r.Post("/", d.postService)
+			r.Route("/{serviceId}", func(r chi.Router) {
+				r.Get("/", d.getService)
+				r.Patch("/", d.patchService)
+				r.Delete("/", d.deleteService)
+			})
+		})
+
+		r.Route("/staff", func(r chi.Router) {
+			r.Get("/", d.listStaff)
+			r.Post("/", d.postStaff)
+			r.Route("/{staffId}", func(r chi.Router) {
+				r.Get("/", d.getStaff)
+				r.Patch("/", d.patchStaff)
+				r.Delete("/", d.deleteStaff)
+			})
+		})
+
+		registerBusinessScopedStubs(r)
+	})
+
+	r.Route("/webhooks", func(r chi.Router) {
+		r.Post("/whatsapp", stub501("whatsapp webhook"))
+		r.Post("/payments/{provider}", stub501("payment provider webhook"))
+	})
+}
+
+// registerBusinessScopedStubs are routes under /v1/businesses/{businessId} not yet implemented (Phase 4+).
+func registerBusinessScopedStubs(r chi.Router) {
+	r.Route("/customers", func(r chi.Router) {
+		r.Get("/", stub501("list customers"))
+		r.Post("/", stub501("create customer"))
+		r.Get("/by-phone", stub501("get customer by phone"))
+		r.Route("/{customerId}", func(r chi.Router) {
+			r.Get("/", stub501("get customer"))
+			r.Patch("/", stub501("patch customer"))
+		})
+	})
+
+	r.Route("/availability", func(r chi.Router) {
+		r.Put("/rules", stub501("put availability rules"))
+		r.Get("/slots", stub501("get availability slots"))
+	})
+
+	r.Route("/bookings", func(r chi.Router) {
+		r.Get("/", stub501("list bookings"))
+		r.Post("/", stub501("create booking"))
+		r.Route("/{bookingId}", func(r chi.Router) {
+			r.Get("/", stub501("get booking"))
+			r.Post("/confirm", stub501("confirm booking"))
+			r.Post("/cancel", stub501("cancel booking"))
+			r.Post("/complete", stub501("complete booking"))
+			r.Post("/no-show", stub501("mark no-show"))
+			r.Route("/payments", func(r chi.Router) {
+				r.Get("/", stub501("list payments for booking"))
+			})
+		})
+	})
+
+	r.Route("/payments", func(r chi.Router) {
+		r.Post("/", stub501("create payment"))
+		r.Route("/{paymentId}", func(r chi.Router) {
+			r.Get("/", stub501("get payment"))
+		})
+	})
+
+	r.Route("/conversations", func(r chi.Router) {
+		r.Post("/", stub501("ensure conversation"))
+		r.Route("/{conversationId}", func(r chi.Router) {
+			r.Get("/", stub501("get conversation"))
+			r.Route("/messages", func(r chi.Router) {
+				r.Get("/", stub501("list messages"))
+				r.Post("/", stub501("create outbound message"))
+			})
+		})
+	})
+
+	r.Route("/notifications", func(r chi.Router) {
+		r.Get("/", stub501("list notifications"))
+		r.Post("/", stub501("schedule notification"))
+	})
+}
+
 func registerStubRoutes(r chi.Router) {
 	r.Post("/platform/businesses", stub501("POST /platform/businesses not implemented yet"))
 
@@ -99,58 +234,7 @@ func registerStubRoutes(r chi.Router) {
 			})
 		})
 
-		r.Route("/customers", func(r chi.Router) {
-			r.Get("/", stub501("list customers"))
-			r.Post("/", stub501("create customer"))
-			r.Get("/by-phone", stub501("get customer by phone"))
-			r.Route("/{customerId}", func(r chi.Router) {
-				r.Get("/", stub501("get customer"))
-				r.Patch("/", stub501("patch customer"))
-			})
-		})
-
-		r.Route("/availability", func(r chi.Router) {
-			r.Put("/rules", stub501("put availability rules"))
-			r.Get("/slots", stub501("get availability slots"))
-		})
-
-		r.Route("/bookings", func(r chi.Router) {
-			r.Get("/", stub501("list bookings"))
-			r.Post("/", stub501("create booking"))
-			r.Route("/{bookingId}", func(r chi.Router) {
-				r.Get("/", stub501("get booking"))
-				r.Post("/confirm", stub501("confirm booking"))
-				r.Post("/cancel", stub501("cancel booking"))
-				r.Post("/complete", stub501("complete booking"))
-				r.Post("/no-show", stub501("mark no-show"))
-				r.Route("/payments", func(r chi.Router) {
-					r.Get("/", stub501("list payments for booking"))
-				})
-			})
-		})
-
-		r.Route("/payments", func(r chi.Router) {
-			r.Post("/", stub501("create payment"))
-			r.Route("/{paymentId}", func(r chi.Router) {
-				r.Get("/", stub501("get payment"))
-			})
-		})
-
-		r.Route("/conversations", func(r chi.Router) {
-			r.Post("/", stub501("ensure conversation"))
-			r.Route("/{conversationId}", func(r chi.Router) {
-				r.Get("/", stub501("get conversation"))
-				r.Route("/messages", func(r chi.Router) {
-					r.Get("/", stub501("list messages"))
-					r.Post("/", stub501("create outbound message"))
-				})
-			})
-		})
-
-		r.Route("/notifications", func(r chi.Router) {
-			r.Get("/", stub501("list notifications"))
-			r.Post("/", stub501("schedule notification"))
-		})
+		registerBusinessScopedStubs(r)
 	})
 
 	r.Route("/webhooks", func(r chi.Router) {

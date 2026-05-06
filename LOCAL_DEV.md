@@ -40,6 +40,17 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 - **Lambda entry:** `cmd/api` uses **`aws-lambda-go-api-proxy/chi`** to forward API Gateway proxy events to the mux.
 - **Apply:** redeploy Lambda after `terraform apply` so the new binary and env var are live (`make terraform-apply`).
 
+## Phase 3 — Tenancy + catalog (DynamoDB)
+
+- **Domain:** `internal/domain` — Business, CatalogService, Staff, Money, errors.
+- **App:** `internal/app/tenancy`, `internal/app/catalog` — use cases + `internal/app/ports` interfaces.
+- **Adapters:** `internal/adapters/dynamo` — single-table keys `BUSINESS#` / `META#` / `SERVICE#` / `STAFF#`, list cursors via base64 PK/SK.
+- **HTTP:** Real routes when `Deps.Tenancy` + `Deps.Catalog` are wired in `cmd/api` (always in Lambda). Stub routes remain for Phase 4+ paths.
+- **Auth (placeholder):**
+  - Optional `PLATFORM_API_KEY` — when set, `POST /v1/platform/businesses` requires header **`X-Api-Key`**.
+  - Tenant routes under `/v1/businesses/{businessId}` require **`X-Tenant-Business-Id`** equal to `{businessId}` unless `SKIP_TENANT_CHECK=true` on the Lambda (dev only).
+- **Env:** `CORE_TABLE_NAME` (set by Terraform from the DynamoDB table name).
+
 Variables live in `infra/terraform/variables.tf` (`aws_region`, `project`, `environment`, etc.).
 
 ## CI
