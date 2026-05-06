@@ -12,6 +12,7 @@ import (
 	chiadapter "github.com/awslabs/aws-lambda-go-api-proxy/chi"
 
 	"github.com/parama/booking/internal/adapters/dynamo"
+	"github.com/parama/booking/internal/app/bookings"
 	"github.com/parama/booking/internal/app/catalog"
 	"github.com/parama/booking/internal/app/customers"
 	"github.com/parama/booking/internal/app/scheduling"
@@ -37,6 +38,7 @@ func main() {
 	stfRepo := &dynamo.StaffRepository{Client: ddb, Table: table}
 	custRepo := &dynamo.CustomerRepository{Client: ddb, Table: table}
 	availRepo := &dynamo.AvailabilityRepository{Client: ddb, Table: table}
+	bookRepo := &dynamo.BookingRepository{Client: ddb, Table: table}
 
 	now := func() time.Time { return time.Now().UTC() }
 	ten := &tenancy.Application{Businesses: bizRepo, Now: now}
@@ -49,11 +51,19 @@ func main() {
 		Now:        now,
 	}
 
+	bk := &bookings.Application{
+		Bookings:  bookRepo,
+		Services:  svcRepo,
+		Customers: custRepo,
+		Now:       now,
+	}
+
 	deps := &httpapi.Deps{
 		Tenancy:         ten,
 		Catalog:         cat,
 		Customers:       crm,
 		Scheduling:      sch,
+		Bookings:        bk,
 		PlatformAPIKey:  os.Getenv("PLATFORM_API_KEY"),
 		SkipTenantCheck: os.Getenv("SKIP_TENANT_CHECK") == "true",
 	}

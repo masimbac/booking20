@@ -1,11 +1,14 @@
 package dynamo
 
+import "time"
+
 const (
 	entityBusiness = "BUSINESS"
 	entityService  = "SERVICE"
 	entityStaff    = "STAFF"
 	entityCustomer = "CUSTOMER"
 	entityAvail    = "AVAILABILITY"
+	entityBooking  = "BOOKING"
 )
 
 // BusinessPK returns the partition key for tenant-scoped data.
@@ -40,4 +43,13 @@ func phoneGSI2PK(e164 string) string {
 
 func phoneGSI2SK(businessID string) string {
 	return "BUSINESS#" + businessID
+}
+
+func bookingSK(bookingID string) string {
+	return "BOOKING#" + bookingID
+}
+
+// bookingGSI1SK is the range key on GSI1 (unique per booking via trailing id).
+func bookingGSI1SK(startUTC time.Time, bookingID string) string {
+	return "BOOKING_DATE#" + startUTC.UTC().Format(time.RFC3339Nano) + "#" + bookingID
 }

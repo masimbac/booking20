@@ -184,20 +184,37 @@ func registerBusinessScopedStubs(r chi.Router, d *Deps) {
 		})
 	}
 
-	r.Route("/bookings", func(r chi.Router) {
-		r.Get("/", stub501("list bookings"))
-		r.Post("/", stub501("create booking"))
-		r.Route("/{bookingId}", func(r chi.Router) {
-			r.Get("/", stub501("get booking"))
-			r.Post("/confirm", stub501("confirm booking"))
-			r.Post("/cancel", stub501("cancel booking"))
-			r.Post("/complete", stub501("complete booking"))
-			r.Post("/no-show", stub501("mark no-show"))
-			r.Route("/payments", func(r chi.Router) {
-				r.Get("/", stub501("list payments for booking"))
+	if d != nil && d.Bookings != nil {
+		r.Route("/bookings", func(r chi.Router) {
+			r.Get("/", d.listBookings)
+			r.Post("/", d.postBooking)
+			r.Route("/{bookingId}", func(r chi.Router) {
+				r.Get("/", d.getBooking)
+				r.Post("/confirm", d.postConfirmBooking)
+				r.Post("/cancel", d.postCancelBooking)
+				r.Post("/complete", d.postCompleteBooking)
+				r.Post("/no-show", d.postNoShowBooking)
+				r.Route("/payments", func(r chi.Router) {
+					r.Get("/", stub501("list payments for booking"))
+				})
 			})
 		})
-	})
+	} else {
+		r.Route("/bookings", func(r chi.Router) {
+			r.Get("/", stub501("list bookings"))
+			r.Post("/", stub501("create booking"))
+			r.Route("/{bookingId}", func(r chi.Router) {
+				r.Get("/", stub501("get booking"))
+				r.Post("/confirm", stub501("confirm booking"))
+				r.Post("/cancel", stub501("cancel booking"))
+				r.Post("/complete", stub501("complete booking"))
+				r.Post("/no-show", stub501("mark no-show"))
+				r.Route("/payments", func(r chi.Router) {
+					r.Get("/", stub501("list payments for booking"))
+				})
+			})
+		})
+	}
 
 	r.Route("/payments", func(r chi.Router) {
 		r.Post("/", stub501("create payment"))

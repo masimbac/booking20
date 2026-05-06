@@ -59,6 +59,14 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 - **Pure logic:** `internal/schedule.BuildSlots` — merges overlapping windows per staff/day, steps by slot duration in UTC.
 - **HTTP (under `/v1/businesses/{businessId}`):** `GET|POST /customers`, `GET /customers/by-phone?phone=…`, `GET|PATCH /customers/{customerId}`, `PUT /availability/rules`, `GET /availability/slots?from=&to=&service_id=&staff_id=&slot_minutes=` — active when `Deps.Customers` and `Deps.Scheduling` are wired (default in `cmd/api`).
 
+## Phase 5 — Bookings (GSI1 + idempotency)
+
+- **Domain:** `Booking` + status transitions (`created` → `confirmed` → `completed` \| `cancelled` \| `no_show`) in `internal/domain/booking.go`.
+- **App:** `internal/app/bookings` — creates with staff overlap checks, confirms with a second overlap pass, cancel / complete / no-show.
+- **Adapters:** `BookingRepository` — main item `SK` `BOOKING#…`, **GSI1** `BOOKING_DATE#RFC3339Nano#bookingId`; idempotency rows `SK` `IDEMPOTENCY#sha256(key)` + `TransactWriteItems` with the booking put.
+- **HTTP:** `GET|POST /bookings`, `GET /bookings/{bookingId}`, transitions under `…/confirm`, `…/cancel`, `…/complete`, `…/no-show`. **Required header:** `Idempotency-Key` on `POST /bookings`. **List:** `?from=&to=` (RFC3339). Active when `Deps.Bookings` is wired (default in `cmd/api`).
+- **Events:** `bookings.EventSink` (default `NoopEvents` in Lambda; replace with EventBridge/outbox later).
+
 Variables live in `infra/terraform/variables.tf` (`aws_region`, `project`, `environment`, etc.).
 
 ## CI

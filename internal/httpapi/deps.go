@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"github.com/parama/booking/internal/app/bookings"
 	"github.com/parama/booking/internal/app/catalog"
 	"github.com/parama/booking/internal/app/customers"
 	"github.com/parama/booking/internal/app/scheduling"
@@ -13,6 +14,7 @@ type Deps struct {
 	Catalog         *catalog.Application
 	Customers       *customers.Application
 	Scheduling      *scheduling.Application
+	Bookings        *bookings.Application
 	PlatformAPIKey  string
 	SkipTenantCheck bool
 }
