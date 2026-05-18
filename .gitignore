@@ -15,6 +15,7 @@ vendor/
 # Env / IDE
 .env
 .env.*
+.env-local
 .idea/
 .vscode/
 *.swp
@@ -24,5 +25,18 @@ vendor/
 .terraform/
 *.tfstate
 *.tfstate.*
+infra/terraform/.backend/
 infra/terraform/.build/
+
+# Remote-state bootstrap module (Terraform uses local state here)
+infra/tf-backend-bootstrap/.terraform/
+infra/tf-backend-bootstrap/*.tfstate
+infra/tf-backend-bootstrap/*.tfstate.*
+infra/tf-backend-bootstrap/terraform.tfvars
+
+# GitHub Actions deploy IAM bootstrap (applied once with privileged creds).
+infra/tf-github-actions-iam/.terraform/
+infra/tf-github-actions-iam/*.tfstate
+infra/tf-github-actions-iam/*.tfstate.*
+infra/tf-github-actions-iam/terraform.tfvars
 

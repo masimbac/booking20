@@ -17,7 +17,18 @@ Phase 0 bootstrap: run tests and linters locally before opening a PR.
 | `make fmt-check` | Fail if files need formatting |
 | `make lint` | Run golangci-lint |
 | `make build-lambda` | Linux binary for Lambda (`bin/bootstrap`, **arm64** by default) |
-| `make terraform-init` | `terraform init` in `infra/terraform` |
+| `make terraform-backend-bootstrap-init` | `terraform init` in `infra/tf-backend-bootstrap` (one-off S3 + DynamoDB lock) |
+| `make terraform-backend-bootstrap-apply` | Create remote-state bucket + lock table (`terraform.tfvars` required — see bootstrap dir) |
+| `make terraform-backend-config` | Build `infra/terraform/.backend/*.hcl` from **`.env-local`** or from **`TF_REMOTE_STATE_BUCKET` + `TF_REMOTE_LOCK_TABLE`** in the environment (GitHub Actions). |
+| `make terraform-init` | `terraform init` with **staging** `-backend-config` (after backend resources + config exist) |
+| `make terraform-init-production` | `terraform init` with **production** backend object key (`booking/production/terraform.tfstate`) |
+| `make terraform-github-actions-iam-init` | Initialise `infra/tf-github-actions-iam` (local state; IAM OIDC + deploy roles — **privileged** one-off apply) |
+| `make terraform-github-actions-iam-validate` | `terraform fmt`, `validate` for GitHub Actions IAM module |
+| `make terraform-github-actions-iam-{plan,apply}` | Plan/apply that module (**after** copying `terraform.tfvars.example`) |
+| `make install-gh` | Install **GitHub CLI** (`gh`) via Homebrew on macOS, or print install URL elsewhere |
+| `make github-actions-ensure-environments` | Create **`staging`** / **`production`** GitHub Environments via API (**`gh auth login`** required) |
+| `make github-actions-sync` | Push **`TERRAFORM_*`** repo variables + optional **`AWS_ROLE_*`** secrets from **`.env-local`** |
+| `make github-actions-repo-setup` | **`install-gh`** → **ensure-env** → **`github-actions-sync`** (non-destructive re-runs OK) |
 | `make terraform-fmt` | `terraform fmt -recursive` |
 | `make terraform-validate` | Build Lambda zip inputs, `init -backend=false`, `validate` |
 | `make terraform-plan` | `terraform plan` (needs AWS credentials and initialized backend if configured) |
@@ -27,11 +38,40 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 
 ## Phase 1 — AWS (Terraform)
 
-1. Configure AWS credentials (`aws configure` or environment variables for the target account).
-2. From the repo root: `make terraform-init` (add `-migrate-state` / backend config when you introduce remote state).
-3. `make terraform-validate` — ensures `bin/bootstrap` exists and configuration is valid (no AWS calls).
-4. `make terraform-plan` then `make terraform-apply` — creates DynamoDB `core` table (4 GSIs), API Lambda (`provided.al2023` **arm64**), REST API `GET {stage}/v1/health` → Lambda.
-5. After apply, open the **`health_url`** output (or `terraform -chdir=infra/terraform output health_url`) — expect JSON `{"status":"ok","phase":"…"}`.
+### Step A — Remote state backend (once per AWS account)
+
+1. Copy **`.env-local.example`** to **`.env-local`** at the repo root and set **`AWS_*` credentials**, **`AWS_REGION`**, and **`TF_REMOTE_STATE_BUCKET` / `TF_REMOTE_LOCK_TABLE`** (or **`AWS_S3_BUCKET_NAME`** + **`AWS_DYNAMODB_TABLE_PREFIX`** — lock table becomes `<PREFIX>-terraform-locks`). Bucket names **must use hyphens** (underscores are not valid DNS-style bucket names).
+2. **Bootstrap** creates the bucket + DynamoDB lock table (this module keeps its **own Terraform state locally** under `infra/tf-backend-bootstrap/`, ignored by Git):
+   - `cp infra/tf-backend-bootstrap/terraform.tfvars.example infra/tf-backend-bootstrap/terraform.tfvars` and edit `state_bucket_name` / `lock_table_name` **to match** `.env-local`.
+   - `make terraform-backend-bootstrap-init` → `make terraform-backend-bootstrap-apply`.
+3. Generate backend partials for `infra/terraform`: **`make terraform-backend-config`** writes **`infra/terraform/.backend/staging.hcl`** and **`production.hcl`** (gitignored).
+4. Initialise the application stack backend: **`make terraform-init`** (**staging** state key inside the bucket). If you already had a **local** `infra/terraform/terraform.tfstate`, add **`-migrate-state`** on first init:\
+   `terraform -chdir=infra/terraform init -migrate-state -backend-config="$(pwd)/infra/terraform/.backend/staging.hcl"`.
+
+### Step C — GitHub Actions OIDC + deploy roles (once; privileged)
+
+1. Reuse **`remote_state_bucket_name`** / **`remote_lock_table_name`** from **Step A** (must match **`make terraform-backend-config`** output bucket + lock DynamoDB table).
+2. **`cp infra/tf-github-actions-iam/terraform.tfvars.example infra/tf-github-actions-iam/terraform.tfvars`** and set **`github_repository`** (`OWNER/NAME`, e.g. `parama/booking-2.0`). Keep **`booking_resource_prefix = "booking"`** unless you changed `infra/terraform` `variables.project`.
+3. If the account already has **`token.actions.githubusercontent.com`** IAM OIDC, set **`create_oidc_provider = false`** in `terraform.tfvars` (otherwise the apply will conflict). Otherwise leave **`true`** so Terraform installs it (thumbprints fetched via TLS).
+4. From the repo root: **`make terraform-github-actions-iam-init`** → **`make terraform-github-actions-iam-plan`** → **`make terraform-github-actions-iam-apply`**. Uses **locally persisted Terraform state** in `infra/tf-github-actions-iam/` (gitignored — protect or move to backend later).
+5. Record **`staging_deploy_role_arn`** / **`production_deploy_role_arn`** for **Step D** (GitHub Secrets).
+
+### Step D — GitHub variables, secrets & deploy workflows
+
+1. **Prerequisites:** Steps **A** + **C** (**`infra/tf-github-actions-iam/terraform.tfvars`** **`github_repository`** matches this repo).
+2. **Install**: **`make install-gh`** (Homebrew/macOS) or **`https://cli.github.com`**. **`gh auth login`** with **`repo`** scope (**`gh auth status`**).
+3. **Push Variables + Secrets (`gh`):** ensure **`.env-local`** defines **`TF_REMOTE_*`** (+ optional **`AWS_ROLE_TO_ASSUME_STAGING`** / **`AWS_ROLE_TO_ASSUME_PRODUCTION`** from IAM outputs). Run **`make github-actions-sync`** (wraps **`scripts/sync-github-actions-repo-config.sh`**). **`make github-actions-ensure-environments`** creates **`staging`/`production`** Environments via API; **`make github-actions-repo-setup`** runs **install-gh**, ensure-env, then sync. Use **`GITHUB_REPO=owner/name`** make override for a repo other than the git checkout remote. **`DRY_RUN=1`** on the script skips writes.
+4. **Manual fallback:** GitHub UI **Settings → Secrets and variables → Actions** — same names as **`vars.TERRAFORM_*`** / **`secrets.AWS_ROLE_*`** consumed by **`deploy-staging/production.yml`**.
+5. **`production`** environment: configure **required reviewers** under **Settings → Environments** (manual prod gate ahead of **`terraform apply`**).
+6. **Automation:** **`terraform-plan-pr.yml`** (**`pull_request`**; path-filtered — **`terraform plan`** vs staging remote state — needs **`trust_github_pull_request_workflows`** / re-apply IAM). **`deploy-staging.yml`** (**`push`** to **`main`/`master`**) and **`deploy-production.yml`** (**`workflow_dispatch`** + **`environment: production`**).
+7. **OIDC trust:** **`trust_staging_github_environment = true`** in **`infra/tf-github-actions-iam`** matches **`jobs.*.environment: staging`**.
+
+### Step B — Deploy the API (`infra/terraform`)
+
+1. **`make terraform-validate`** — ensures `bin/bootstrap` exists and configuration is valid (no AWS backend call; uses **`init -backend=false`**).
+2. **Stack naming:** for **`booking-staging-*`** / **`booking-production-*`**, pass **`-var-file=environments/<env>.tfvars`**. Omit for default **`booking-dev-*`** (`environment = "dev"`).
+3. After **Step A**, run **`terraform -chdir=infra/terraform plan -var-file=environments/staging.tfvars`** then **`apply`** with the same **`-var-file`** ( **`make terraform-plan`** / **`make terraform-apply`** do **not** pass **`var-file`** yet).
+4. Open **`terraform -chdir=infra/terraform output health_url`** — expect JSON `{"status":"ok","phase":"…"}`.
 
 ## Phase 2 — HTTP shell (chi + problem+json)
 
