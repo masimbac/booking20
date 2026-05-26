@@ -120,6 +120,11 @@ sync_variables() {
   run gh variable set TERRAFORM_STATE_BUCKET --body "$BUCKET"
   run gh variable set TERRAFORM_LOCK_TABLE --body "$LOCK"
   run gh variable set AWS_REGION --body "$REGION"
+  [[ -z "${TF_REMOTE_STATE_BUCKET_STAGING:-}" ]] || run gh variable set TERRAFORM_STATE_BUCKET_STAGING --body "$TF_REMOTE_STATE_BUCKET_STAGING"
+  [[ -z "${TF_REMOTE_STATE_BUCKET_PRODUCTION:-}" ]] || run gh variable set TERRAFORM_STATE_BUCKET_PRODUCTION --body "$TF_REMOTE_STATE_BUCKET_PRODUCTION"
+  [[ -z "${TF_REMOTE_LOCK_TABLE_STAGING:-}" ]] || run gh variable set TERRAFORM_LOCK_TABLE_STAGING --body "$TF_REMOTE_LOCK_TABLE_STAGING"
+  [[ -z "${TF_REMOTE_LOCK_TABLE_PRODUCTION:-}" ]] || run gh variable set TERRAFORM_LOCK_TABLE_PRODUCTION --body "$TF_REMOTE_LOCK_TABLE_PRODUCTION"
+  [[ -z "${TF_STATE_KEY_PREFIX:-}" ]] || run gh variable set TERRAFORM_STATE_KEY_PREFIX --body "$TF_STATE_KEY_PREFIX"
 }
 
 sync_optional_secrets() {

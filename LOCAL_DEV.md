@@ -69,7 +69,7 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 ### Step B — Deploy the API (`infra/terraform`)
 
 1. **`make terraform-validate`** — ensures `bin/bootstrap` exists and configuration is valid (no AWS backend call; uses **`init -backend=false`**).
-2. **Stack naming:** for **`booking-staging-*`** / **`booking-production-*`**, pass **`-var-file=environments/<env>.tfvars`**. Omit for default **`booking-dev-*`** (`environment = "dev"`).
+2. **Stack naming:** with **`staging.tfvars` / `production.tfvars`** resources are **`{project}-{environment}-{resource}`** (e.g. **`booking20-staging-*`** / **`booking20-prod-*`**). Omit **`-var-file`** for default **`booking-dev-*`** (`environment = "dev"`).
 3. After **Step A**, run **`terraform -chdir=infra/terraform plan -var-file=environments/staging.tfvars`** then **`apply`** with the same **`-var-file`** ( **`make terraform-plan`** / **`make terraform-apply`** do **not** pass **`var-file`** yet).
 4. Open **`terraform -chdir=infra/terraform output health_url`** — expect JSON `{"status":"ok","phase":"…"}`.
 

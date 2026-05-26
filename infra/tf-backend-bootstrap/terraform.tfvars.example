@@ -1,6 +1,12 @@
-# Copy to terraform.tfvars (gitignored). Use a hyphenated, globally unique bucket name —
-# underscores are invalid for standard S3 bucket DNS names.
+# Copy to terraform.tfvars (gitignored). Underscores are invalid in standard S3 bucket DNS names — use hyphens.
+#
+# Per-environment buckets (# application-environment-terraform), e.g. booking20-staging-terraform:
+#   terraform apply -state=staging.tfstate
+# Then copy to terraform-prod.tfvars, set booking20-prod-terraform / lock, and:
+#   terraform apply -state=production.tfstate -var-file=terraform-prod.tfvars
+#
+# One shared bucket for all envs is also valid (state keys differentiate envs) — see scripts/render-backend-config.sh.
 
 aws_region          = "us-east-1"
-state_bucket_name   = "YOUR_ACCOUNT_OR_ORG_BOOKING_TF_STATE"
-lock_table_name     = "YOUR_ACCOUNT_OR_ORG_BOOKING_TF_LOCK"
+state_bucket_name   = "booking20-staging-terraform"
+lock_table_name     = "booking20-staging-terraform-lock"

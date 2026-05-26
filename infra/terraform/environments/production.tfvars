@@ -1,4 +1,4 @@
-# Production workspace — naming: booking-production-<resource>.
+# Production workspace — naming: booking20-prod-<resource>.
 #
 # Keep production in a dedicated AWS account or OU if your org requires isolation;
 # Terraform only distinguishes stacks via backend state + this file.
@@ -6,8 +6,8 @@
 # Deploy (normally via approved pipeline only):
 #   terraform -chdir=infra/terraform apply -var-file=environments/production.tfvars
 
-environment = "production"
-project     = "booking"
+environment = "prod"
+project     = "booking20"
 aws_region  = "us-east-1"
 
 # Explicit PITR (also enabled automatically for prod-like environment names).
