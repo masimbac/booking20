@@ -1,5 +1,8 @@
 name: Deploy staging
 
+# Mirrors .env-local / scripts: TF_* and TERRAFORM_* Variables use booking20-<environment>-<resource>
+# for S3 DynamoDB backends (default state key prefix booking20 → booking20/staging/terraform.tfstate).
+
 on:
   push:
     branches: [main, master]

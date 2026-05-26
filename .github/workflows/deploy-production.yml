@@ -1,5 +1,8 @@
 name: Deploy production
 
+# Apply uses infra/terraform backend production.hcl (state object …/production/terraform.tfstate by default —
+# unrelated to API stage name). Runtime stack uses staging.tfvars / production.tfvars; prod URLs stay `/prod/…`.
+
 on:
   workflow_dispatch:
 

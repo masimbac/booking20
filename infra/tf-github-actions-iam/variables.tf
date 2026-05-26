@@ -37,8 +37,19 @@ variable "remote_lock_table_name" {
 
 variable "booking_resource_prefix" {
   type        = string
-  description = "Prefix matching application DynamoDB tables, Lambda functions, and IAM roles created by infra/terraform (align with variables.project, default `booking`)."
-  default     = "booking"
+  description = "Application prefix matching infra/terraform `var.project` (workload ARNs use `<this>-*`)."
+  default     = "booking20"
+}
+
+variable "terraform_state_key_prefix" {
+  type        = string
+  description = "S3 key prefix for remote state objects (matches `TF_STATE_KEY_PREFIX` / `TERRAFORM_STATE_KEY_PREFIX`, same default as scripts/render-backend-config.sh)."
+  default     = "booking20"
+
+  validation {
+    condition     = !startswith(var.terraform_state_key_prefix, "/") && !endswith(var.terraform_state_key_prefix, "/") && trimspace(var.terraform_state_key_prefix) != ""
+    error_message = "terraform_state_key_prefix must be non-empty without leading or trailing slashes."
+  }
 }
 
 variable "github_staging_refs" {
@@ -79,18 +90,18 @@ variable "production_github_environment" {
 
 variable "staging_role_name" {
   type        = string
-  description = "IAM role name assumed from GitHub for staging/trunk deploys."
-  default     = "booking-github-deploy-staging"
+  description = "IAM role name assumed from GitHub for staging/trunk deploys (pattern: booking20-<env>-<role>)."
+  default     = "booking20-staging-github-deploy"
 }
 
 variable "production_role_name" {
   type        = string
-  description = "IAM role assumed when GitHub environment is `production`."
-  default     = "booking-github-deploy-production"
+  description = "IAM role assumed when GitHub environment is `production` (pattern: booking20-<env>-<role>)."
+  default     = "booking20-production-github-deploy"
 }
 
 variable "protect_state_bucket_objects" {
   type        = bool
-  description = "Restrict S3 state objects to staging/production keys rendered by scripts/render-backend-config.sh (`booking/` prefix)."
+  description = "Restrict S3 state to keys under terraform_state_key_prefix (see scripts/render-backend-config.sh)."
   default     = true
 }

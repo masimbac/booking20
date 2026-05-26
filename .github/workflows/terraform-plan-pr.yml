@@ -1,6 +1,11 @@
 # Terraform staging plan against remote state — runs on PRs touching infra/code.
 #
-# Requires: Actions Variables (TERRAFORM_*) + secret AWS_ROLE_TO_ASSUME_STAGING (same staging role).
+# GitHub Variables (align with booking20-<env>-<resource> AWS names):
+#   TERRAFORM_STATE_BUCKET (+ optional TERRAFORM_STATE_BUCKET_STAGING / PRODUCTION)
+#   TERRAFORM_LOCK_TABLE (+ optional per-env *_STAGING / *_PRODUCTION), TERRAFORM_STATE_KEY_PREFIX (default booking20)
+# Secrets: AWS_ROLE_TO_ASSUME_STAGING (e.g. arn:...:role/booking20-staging-github-deploy)
+#
+# Requires: Actions Variables above + secrets for assumed roles (same staging role as deploy-staging).
 # IAM must include trust_github_pull_request_workflows (staging role trusts `repo:…:pull_request*`).
 # Fork PRs: GitHub restricts OIDC / secrets — this job may skip or fail unless you approve workflows.
 name: Terraform plan

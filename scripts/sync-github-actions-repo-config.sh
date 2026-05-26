@@ -2,6 +2,11 @@
 # Push Terraform-related GitHub Actions repository Variables (and optional Secrets)
 # from the environment or from repo-root `.env-local` using the GitHub CLI.
 #
+# Naming: configure AWS backend resources as booking20-<environment>-<resource> (e.g. bucket
+# booking20-staging-terraform, DynamoDB lock booking20-staging-terraform-locks); mirror the same
+# values into GitHub Variables TERRAFORM_STATE_BUCKET / TERRAFORM_LOCK_TABLE (+ optional per-env
+# TERRAFORM_*_STAGING / *_PRODUCTION). Set TERRAFORM_STATE_KEY_PREFIX=booking20 to match S3 state keys.
+#
 # Prereqs: `gh auth login` (repo scope). Secret sync needs permission to manage Actions secrets.
 #
 # Usage:
@@ -55,30 +60,37 @@ require_gh() {
 }
 
 load_backend_env() {
+  if [[ -f "$ENV_LOCAL" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_LOCAL"
+    set +a
+  fi
+
+  REGION="${AWS_REGION:-us-east-1}"
+
   if [[ -n "${TF_REMOTE_STATE_BUCKET:-}" && -n "${TF_REMOTE_LOCK_TABLE:-}" ]]; then
     BUCKET="${TF_REMOTE_STATE_BUCKET}"
     LOCK="${TF_REMOTE_LOCK_TABLE}"
-    REGION="${AWS_REGION:-us-east-1}"
     return
   fi
-
-  if [[ ! -f "$ENV_LOCAL" ]]; then
-    echo "error: need TF_REMOTE_STATE_BUCKET + TF_REMOTE_LOCK_TABLE in the environment, or ${ENV_LOCAL} (copy .env-local.example)." >&2
-    exit 1
-  fi
-
-  set -a
-  # shellcheck disable=SC1090
-  source "$ENV_LOCAL"
-  set +a
 
   BUCKET="${TF_REMOTE_STATE_BUCKET:-${AWS_S3_BUCKET_NAME:-}}"
   LOCK="${TF_REMOTE_LOCK_TABLE:-}"
   if [[ -z "$LOCK" && -n "${AWS_DYNAMODB_TABLE_PREFIX:-}" ]]; then
     LOCK="${AWS_DYNAMODB_TABLE_PREFIX}-terraform-locks"
   fi
-  REGION="${AWS_REGION:-us-east-1}"
+
+  [[ -n "${BUCKET}" ]] || BUCKET="${TF_REMOTE_STATE_BUCKET_STAGING:-${TF_REMOTE_STATE_BUCKET_PRODUCTION:-}}"
+  [[ -n "${LOCK}" ]] || LOCK="${TF_REMOTE_LOCK_TABLE_STAGING:-${TF_REMOTE_LOCK_TABLE_PRODUCTION:-}}"
+
+  if [[ -z "$BUCKET" ]] || [[ -z "$LOCK" ]]; then
+    echo "error: need backend bucket + DynamoDB lock (copy .env-local.example). Provide TF_REMOTE_STATE_BUCKET + TF_REMOTE_LOCK_TABLE or only TF_REMOTE_*_STAGING/_PRODUCTION (staging values fill TERRAFORM_STATE_BUCKET / TERRAFORM_LOCK_TABLE when singleton vars omitted)." >&2
+    exit 1
+  fi
 }
+
+
 
 ensure_environments() {
   local spec
@@ -99,11 +111,11 @@ ensure_environments() {
 
 sync_variables() {
   [[ -n "$BUCKET" ]] || {
-    echo "error: missing state bucket (TF_REMOTE_STATE_BUCKET / AWS_S3_BUCKET_NAME)." >&2
+    echo "error: missing state bucket after resolving env (TF_REMOTE_STATE_BUCKET / AWS_S3_BUCKET_NAME / TF_REMOTE_STATE_BUCKET_{STAGING,PRODUCTION})." >&2
     exit 1
   }
   [[ -n "$LOCK" ]] || {
-    echo "error: missing lock table (TF_REMOTE_LOCK_TABLE or AWS_DYNAMODB_TABLE_PREFIX)." >&2
+    echo "error: missing lock table after resolving env (TF_REMOTE_LOCK_TABLE / AWS_DYNAMODB_TABLE_PREFIX / TF_REMOTE_LOCK_TABLE_{STAGING,PRODUCTION})." >&2
     exit 1
   }
 

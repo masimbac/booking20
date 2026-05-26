@@ -3,11 +3,12 @@
 
 create_oidc_provider = true
 
-aws_region               = "us-east-1"
-github_repository        = "YOUR_ORG/booking-2.0"
-remote_state_bucket_name = "YOUR_HYPHEN_BUCKET_NAME"
-remote_lock_table_name   = "YOUR_LOCK_TABLE_NAME"
-booking_resource_prefix  = "booking"
+aws_region                     = "us-east-1"
+github_repository              = "YOUR_ORG/booking-2.0"
+remote_state_bucket_name      = "booking20-staging-terraform"
+remote_lock_table_name        = "booking20-staging-terraform-locks"
+booking_resource_prefix       = "booking20"
+terraform_state_key_prefix    = "booking20"
 
 # Typical trunk-based staging gate (merge to main):
 github_staging_refs = ["refs/heads/main"]

@@ -21,7 +21,7 @@ Phase 0 bootstrap: run tests and linters locally before opening a PR.
 | `make terraform-backend-bootstrap-apply` | Create remote-state bucket + lock table (`terraform.tfvars` required — see bootstrap dir) |
 | `make terraform-backend-config` | Build `infra/terraform/.backend/*.hcl` from **`.env-local`** or from **`TF_REMOTE_STATE_BUCKET` + `TF_REMOTE_LOCK_TABLE`** in the environment (GitHub Actions). |
 | `make terraform-init` | `terraform init` with **staging** `-backend-config` (after backend resources + config exist) |
-| `make terraform-init-production` | `terraform init` with **production** backend object key (`booking/production/terraform.tfstate`) |
+| `make terraform-init-production` | `terraform init` with **production** backend object key (`booking20/production/terraform.tfstate` unless `TF_STATE_KEY_PREFIX` overrides) |
 | `make terraform-github-actions-iam-init` | Initialise `infra/tf-github-actions-iam` (local state; IAM OIDC + deploy roles — **privileged** one-off apply) |
 | `make terraform-github-actions-iam-validate` | `terraform fmt`, `validate` for GitHub Actions IAM module |
 | `make terraform-github-actions-iam-{plan,apply}` | Plan/apply that module (**after** copying `terraform.tfvars.example`) |
@@ -40,7 +40,7 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 
 ### Step A — Remote state backend (once per AWS account)
 
-1. Copy **`.env-local.example`** to **`.env-local`** at the repo root and set **`AWS_*` credentials**, **`AWS_REGION`**, and **`TF_REMOTE_STATE_BUCKET` / `TF_REMOTE_LOCK_TABLE`** (or **`AWS_S3_BUCKET_NAME`** + **`AWS_DYNAMODB_TABLE_PREFIX`** — lock table becomes `<PREFIX>-terraform-locks`). Bucket names **must use hyphens** (underscores are not valid DNS-style bucket names).
+1. Copy **`.env-local.example`** to **`.env-local`** at the repo root and set **`AWS_*` credentials**, **`AWS_REGION`**, and **`TF_REMOTE_STATE_BUCKET` / `TF_REMOTE_LOCK_TABLE`** (or **`AWS_S3_BUCKET_NAME`** + **`AWS_DYNAMODB_TABLE_PREFIX`** — lock table becomes `<PREFIX>-terraform-locks`). Use **`booking20-<environment>-<resource>`** for bucket and lock names (e.g. **`booking20-staging-terraform`** + **`booking20-staging-terraform-locks`**). Bucket names **must use hyphens** (underscores are not valid DNS-style bucket names).
 2. **Bootstrap** creates the bucket + DynamoDB lock table (this module keeps its **own Terraform state locally** under `infra/tf-backend-bootstrap/`, ignored by Git):
    - `cp infra/tf-backend-bootstrap/terraform.tfvars.example infra/tf-backend-bootstrap/terraform.tfvars` and edit `state_bucket_name` / `lock_table_name` **to match** `.env-local`.
    - `make terraform-backend-bootstrap-init` → `make terraform-backend-bootstrap-apply`.
@@ -51,7 +51,7 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 ### Step C — GitHub Actions OIDC + deploy roles (once; privileged)
 
 1. Reuse **`remote_state_bucket_name`** / **`remote_lock_table_name`** from **Step A** (must match **`make terraform-backend-config`** output bucket + lock DynamoDB table).
-2. **`cp infra/tf-github-actions-iam/terraform.tfvars.example infra/tf-github-actions-iam/terraform.tfvars`** and set **`github_repository`** (`OWNER/NAME`, e.g. `parama/booking-2.0`). Keep **`booking_resource_prefix = "booking"`** unless you changed `infra/terraform` `variables.project`.
+2. **`cp infra/tf-github-actions-iam/terraform.tfvars.example infra/tf-github-actions-iam/terraform.tfvars`** and set **`github_repository`** (`OWNER/NAME`, e.g. `parama/booking-2.0`). Keep **`booking_resource_prefix`** and **`terraform_state_key_prefix`** aligned with **`infra/terraform`** `variables.project` and **`TF_STATE_KEY_PREFIX`** (default **`booking20`**).
 3. If the account already has **`token.actions.githubusercontent.com`** IAM OIDC, set **`create_oidc_provider = false`** in `terraform.tfvars` (otherwise the apply will conflict). Otherwise leave **`true`** so Terraform installs it (thumbprints fetched via TLS).
 4. From the repo root: **`make terraform-github-actions-iam-init`** → **`make terraform-github-actions-iam-plan`** → **`make terraform-github-actions-iam-apply`**. Uses **locally persisted Terraform state** in `infra/tf-github-actions-iam/` (gitignored — protect or move to backend later).
 5. Record **`staging_deploy_role_arn`** / **`production_deploy_role_arn`** for **Step D** (GitHub Secrets).
@@ -69,7 +69,7 @@ Override Lambda architecture: `make build-lambda LAMBDA_GOARCH=amd64`.
 ### Step B — Deploy the API (`infra/terraform`)
 
 1. **`make terraform-validate`** — ensures `bin/bootstrap` exists and configuration is valid (no AWS backend call; uses **`init -backend=false`**).
-2. **Stack naming:** with **`staging.tfvars` / `production.tfvars`** resources are **`{project}-{environment}-{resource}`** (e.g. **`booking20-staging-*`** / **`booking20-prod-*`**). Omit **`-var-file`** for default **`booking-dev-*`** (`environment = "dev"`).
+2. **Stack naming:** with **`staging.tfvars` / `production.tfvars`** resources use **`booking20-<terraform-environment>-<resource>`** (e.g. **`booking20-staging-*`** and **`booking20-prod-*`** — production keeps API stage **`prod`** per `production.tfvars`). Omit **`-var-file`** for default **`booking20-dev-*`** (`environment = "dev"`).
 3. After **Step A**, run **`terraform -chdir=infra/terraform plan -var-file=environments/staging.tfvars`** then **`apply`** with the same **`-var-file`** ( **`make terraform-plan`** / **`make terraform-apply`** do **not** pass **`var-file`** yet).
 4. Open **`terraform -chdir=infra/terraform output health_url`** — expect JSON `{"status":"ok","phase":"…"}`.
 

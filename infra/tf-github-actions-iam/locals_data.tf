@@ -36,16 +36,16 @@ locals {
 
   state_bucket_arn = format("arn:aws:s3:::%s", var.remote_state_bucket_name)
 
-  # Objects written under booking/ match scripts/render-backend-config.sh state keys (booking/<env>/…).
+  # Objects under <terraform_state_key_prefix>/ match scripts/render-backend-config.sh (e.g. booking20/staging/…).
   state_object_arns = var.protect_state_bucket_objects ? [
-    "${local.state_bucket_arn}/booking/*",
+    "${local.state_bucket_arn}/${var.terraform_state_key_prefix}/*",
   ] : ["${local.state_bucket_arn}/*"]
 
   list_bucket_arns = [local.state_bucket_arn]
 
   state_bucket_list_prefix_condition = var.protect_state_bucket_objects ? [
-    "booking/",
-    "booking/*",
+    "${var.terraform_state_key_prefix}/",
+    "${var.terraform_state_key_prefix}/*",
   ] : []
 }
 
