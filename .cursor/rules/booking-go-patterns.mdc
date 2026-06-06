@@ -1,0 +1,37 @@
+---
+description: Go API conventions for booking-2.0 — architecture, handlers, DynamoDB, and verification commands.
+globs: "**/*.go"
+alwaysApply: false
+---
+
+# booking-2.0 Go patterns
+
+Project context lives in **CURSOR.md**. Follow these patterns when editing Go code.
+
+## Architecture
+
+- **Domain** (`internal/domain/`): entities, validation, pure rules — no I/O.
+- **App** (`internal/app/<feature>/`): use cases wired to **`internal/app/ports`** interfaces.
+- **Adapters** (`internal/adapters/`): DynamoDB repos, stubs, outbound channels.
+- **HTTP** (`internal/httpapi/`): thin handlers — decode → app call → `mapAppErr` / problem+json.
+
+## Changes
+
+1. Extend existing **ports and repos**; do not query DynamoDB from handlers.
+2. Inject `Now func() time.Time` on apps for testability.
+3. Use ULIDs and **`internal/domain/money`** for IDs and pricing.
+4. When adding Dynamo access patterns, update **both** Terraform GSIs and adapter key layout.
+
+## HTTP
+
+- Base path `/v1`; RFC 7807 **`application/problem+json`** errors.
+- Bookings: `POST /bookings` requires **`Idempotency-Key`**.
+- Tenant routes expect **`X-Tenant-Business-Id`**.
+
+## Verify before PR
+
+```bash
+make test && make vet && make lint
+```
+
+Fix `make fmt-check` failures with `make fmt`.

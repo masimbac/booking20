@@ -2,6 +2,24 @@
 
 Context for Cursor Agent (and humans) working in this repo. For deeper phased feature notes, env setup, and deploy steps, read **LOCAL_DEV.md** and **RUNBOOK.md**.
 
+## Agent rules and skills
+
+**Global (all projects on this machine):** Karpathy behavioral guidelines from [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) live under `~/.cursor/`:
+
+| Artifact | Path | When it applies |
+|----------|------|-----------------|
+| Karpathy guidelines (User Rules) | **Cursor Settings → Rules → User Rules** | Always, every project — paste from `~/.cursor/user-rules-karpathy.txt` |
+| Karpathy guidelines (skill) | `~/.cursor/skills/karpathy-guidelines/SKILL.md` | On demand / skill invocation |
+
+**This repo only:**
+
+| Artifact | Path | When it applies |
+|----------|------|-----------------|
+| Go project patterns (rule) | `.cursor/rules/booking-go-patterns.mdc` | When editing `**/*.go` files |
+| Cross-tool instructions | `CLAUDE.md` | Claude Code and other tools that read root instruction files |
+
+Confirm project rules under **Settings → Rules**. When updating the four Karpathy principles, keep **User Rules**, `~/.cursor/skills/karpathy-guidelines/SKILL.md`, and `CLAUDE.md` in sync.
+
 ## What this is
 
 - **Go API** packaged as an **AWS Lambda** behind API Gateway (**chi** mux via `aws-lambda-go-api-proxy`).
