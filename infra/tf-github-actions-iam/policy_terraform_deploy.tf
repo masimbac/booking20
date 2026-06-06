@@ -80,7 +80,6 @@ data "aws_iam_policy_document" "github_terraform_deploy" {
     effect = "Allow"
     actions = [
       "logs:CreateLogGroup",
-      "logs:DescribeLogGroups",
       "logs:DeleteLogGroup",
       "logs:PutRetentionPolicy",
       "logs:TagLogGroup",
@@ -94,6 +93,7 @@ data "aws_iam_policy_document" "github_terraform_deploy" {
     sid    = "WorkloadLogsDescribe"
     effect = "Allow"
     actions = [
+      "logs:DescribeLogGroups",
       "logs:DescribeLogStreams",
       "logs:DeleteLogStream",
       "logs:FilterLogEvents",
