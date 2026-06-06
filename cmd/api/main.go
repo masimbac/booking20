@@ -23,6 +23,7 @@ import (
 	"github.com/parama/booking/internal/app/payments"
 	"github.com/parama/booking/internal/app/scheduling"
 	"github.com/parama/booking/internal/app/tenancy"
+	"github.com/parama/booking/internal/app/twilio"
 	"github.com/parama/booking/internal/domain"
 	"github.com/parama/booking/internal/httpapi"
 	"github.com/parama/booking/internal/phase0"
@@ -117,6 +118,10 @@ func main() {
 		WhatsAppAppSecret: os.Getenv("WHATSAPP_APP_SECRET"),
 	}
 
+	tw := &twilio.Application{
+		AuthToken: os.Getenv("TWILIO_AUTH_TOKEN"),
+	}
+
 	deps := &httpapi.Deps{
 		Tenancy:               ten,
 		Catalog:               cat,
@@ -125,6 +130,7 @@ func main() {
 		Bookings:              bk,
 		Payments:              pay,
 		Conversations:         conv,
+		Twilio:                tw,
 		Notifications:         notifApp,
 		PlatformAPIKey:        os.Getenv("PLATFORM_API_KEY"),
 		RequirePlatformAPIKey: os.Getenv("REQUIRE_PLATFORM_API_KEY") == "true",
