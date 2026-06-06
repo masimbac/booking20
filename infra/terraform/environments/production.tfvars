@@ -8,8 +8,8 @@
 #   terraform -chdir=infra/terraform apply -var-file=environments/production.tfvars
 
 environment = "prod"
-project       = "booking20"
-aws_region    = "us-east-1"
+project     = "booking20"
+aws_region  = "us-east-1"
 
 # Explicit PITR (also enabled automatically for prod-like environment names).
 dynamodb_point_in_time_recovery = true
