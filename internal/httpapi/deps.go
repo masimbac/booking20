@@ -9,6 +9,7 @@ import (
 	"github.com/parama/booking/internal/app/payments"
 	"github.com/parama/booking/internal/app/scheduling"
 	"github.com/parama/booking/internal/app/tenancy"
+	"github.com/parama/booking/internal/app/twilio"
 )
 
 // Deps wires application services into HTTP handlers (Phase 3+).
@@ -20,6 +21,7 @@ type Deps struct {
 	Bookings              *bookings.Application
 	Payments              *payments.Application
 	Conversations         *conversations.Application
+	Twilio                *twilio.Application
 	Notifications         *notifications.Application
 	PlatformAPIKey        string
 	RequirePlatformAPIKey bool

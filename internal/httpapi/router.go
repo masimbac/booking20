@@ -43,7 +43,7 @@ func NewRouter(cfg RouterConfig, deps *Deps) *chi.Mux {
 		if deps.Tenancy != nil && deps.Catalog != nil {
 			registerPhase3Routes(r, deps)
 		} else {
-			registerStubRoutes(r)
+			registerStubRoutes(r, deps)
 		}
 	})
 
@@ -173,6 +173,11 @@ func registerPhase3Routes(r chi.Router, d *Deps) {
 		} else {
 			r.Post("/whatsapp", stub501("whatsapp webhook"))
 		}
+		if d.Twilio != nil {
+			r.Post("/twilio", d.postTwilioWebhook)
+		} else {
+			r.Post("/twilio", stub501("twilio webhook"))
+		}
 		if d.Payments != nil {
 			r.Post("/payments/{provider}", d.postPaymentProviderWebhook)
 		} else {
@@ -300,7 +305,10 @@ func registerBusinessScopedStubs(r chi.Router, d *Deps) {
 	}
 }
 
-func registerStubRoutes(r chi.Router) {
+func registerStubRoutes(r chi.Router, d *Deps) {
+	if d == nil {
+		d = &Deps{}
+	}
 	r.Post("/platform/businesses", stub501("POST /platform/businesses not implemented yet"))
 
 	r.Route("/businesses/{businessId}", func(r chi.Router) {
@@ -332,6 +340,11 @@ func registerStubRoutes(r chi.Router) {
 
 	r.Route("/webhooks", func(r chi.Router) {
 		r.Post("/whatsapp", stub501("whatsapp webhook"))
+		if d != nil && d.Twilio != nil {
+			r.Post("/twilio", d.postTwilioWebhook)
+		} else {
+			r.Post("/twilio", stub501("twilio webhook"))
+		}
 		r.Post("/payments/{provider}", stub501("payment provider webhook"))
 	})
 }
