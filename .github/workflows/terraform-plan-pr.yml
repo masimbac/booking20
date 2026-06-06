@@ -1,0 +1,82 @@
+# Terraform staging plan against remote state — runs on PRs touching infra/code.
+#
+# GitHub Variables (align with booking20-<env>-<resource> AWS names):
+#   TERRAFORM_STATE_BUCKET (+ optional TERRAFORM_STATE_BUCKET_STAGING / PRODUCTION)
+#   TERRAFORM_LOCK_TABLE (+ optional per-env *_STAGING / *_PRODUCTION), TERRAFORM_STATE_KEY_PREFIX (default booking20)
+# Secrets: AWS_ROLE_TO_ASSUME_STAGING (e.g. arn:...:role/booking20-staging-github-deploy)
+#
+# Requires: Actions Variables above + secrets for assumed roles (same staging role as deploy-staging).
+# IAM must include trust_github_pull_request_workflows (staging role trusts `repo:…:pull_request*`).
+# Fork PRs: GitHub restricts OIDC / secrets — this job may skip or fail unless you approve workflows.
+name: Terraform plan
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "infra/terraform/**"
+      - "cmd/**"
+      - "internal/**"
+      - "go.mod"
+      - "go.sum"
+      - ".github/workflows/terraform-plan-pr.yml"
+
+concurrency:
+  group: terraform-plan-pr-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  plan-staging:
+    name: plan (staging vars)
+    runs-on: ubuntu-latest
+    env:
+      TF_REMOTE_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+      TF_REMOTE_LOCK_TABLE: ${{ vars.TERRAFORM_LOCK_TABLE }}
+      TF_REMOTE_STATE_BUCKET_STAGING: ${{ vars.TERRAFORM_STATE_BUCKET_STAGING }}
+      TF_REMOTE_STATE_BUCKET_PRODUCTION: ${{ vars.TERRAFORM_STATE_BUCKET_PRODUCTION }}
+      TF_REMOTE_LOCK_TABLE_STAGING: ${{ vars.TERRAFORM_LOCK_TABLE_STAGING }}
+      TF_REMOTE_LOCK_TABLE_PRODUCTION: ${{ vars.TERRAFORM_LOCK_TABLE_PRODUCTION }}
+      TF_STATE_KEY_PREFIX: ${{ vars.TERRAFORM_STATE_KEY_PREFIX }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (staging role)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_STAGING }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Render terraform backend configs
+        run: chmod +x scripts/render-backend-config.sh && ./scripts/render-backend-config.sh
+
+      - name: Build Lambda
+        run: make build-lambda
+
+      - name: Terraform init
+        run: terraform -chdir=infra/terraform init -input=false -backend-config="${GITHUB_WORKSPACE}/infra/terraform/.backend/staging.hcl"
+
+      - name: Terraform plan
+        shell: bash
+        run: |
+          set +e
+          terraform -chdir=infra/terraform plan -input=false -no-color \
+            -var-file=environments/staging.tfvars \
+            -detailed-exitcode
+          code=$?
+          echo "Terraform exit code=${code}"
+          if [[ "$code" -eq 1 ]]; then exit 1; fi
+          exit 0

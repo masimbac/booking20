@@ -6,13 +6,13 @@ variable "aws_region" {
 
 variable "project" {
   type        = string
-  description = "Short project name used in resource names"
-  default     = "booking"
+  description = "Application prefix in resource names (pattern: <project>-<environment>-<resource>)"
+  default     = "booking20"
 }
 
 variable "environment" {
   type        = string
-  description = "Deployment stage (e.g. dev, staging)"
+  description = "Deployment stage in resource names/API Gateway stage (e.g. staging, prod — use prod to keep URLs …/prod/…)."
   default     = "dev"
 }
 

@@ -19,7 +19,7 @@ If Terraform variables `alarm_notification_email` / `cost_alert_email` are set:
 
 ## DynamoDB backup / PITR
 
-- **Point-in-time recovery (PITR)** is **on** when `dynamodb_point_in_time_recovery` is true **or** when `environment` is a prod-like value (`staging`, `prod`, etc.). See `infra/terraform/dynamodb.tf` (`local.dynamodb_pitr_enabled`).
+- **Point-in-time recovery (PITR)** is **on** when `dynamodb_point_in_time_recovery` is true **or** when `environment` is a prod-like value (`staging`, `production`, `prod`, etc.). See `infra/terraform/dynamodb.tf` (`local.dynamodb_pitr_enabled`).
 - **RPO:** With PITR, restore to any second within the PITR window (AWS: up to 35 days once continuous backups are enabled).
 - **RTO:** Depends on restore path (on-table restore vs export); plan table rebuild or cross-region strategy separately.
 

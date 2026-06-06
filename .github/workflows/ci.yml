@@ -36,7 +36,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.63.4
+          version: v1.64.8
           args: --timeout=3m
 
   terraform:
@@ -59,3 +59,16 @@ jobs:
 
       - name: Terraform validate
         run: make terraform-validate
+
+  terraform-github-actions-iam:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+          terraform_wrapper: false
+
+      - name: Terraform validate (GitHub Actions IAM)
+        run: make terraform-github-actions-iam-validate

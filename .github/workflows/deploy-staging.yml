@@ -1,0 +1,63 @@
+name: Deploy staging
+
+# Mirrors .env-local / scripts: TF_* and TERRAFORM_* Variables use booking20-<environment>-<resource>
+# for S3 DynamoDB backends (default state key prefix booking20 → booking20/staging/terraform.tfstate).
+
+on:
+  push:
+    branches: [main, master]
+
+concurrency:
+  group: terraform-staging-${{ github.repository }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform-staging:
+    name: terraform apply staging
+    runs-on: ubuntu-latest
+    environment: staging
+    env:
+      TF_REMOTE_STATE_BUCKET: ${{ vars.TERRAFORM_STATE_BUCKET }}
+      TF_REMOTE_LOCK_TABLE: ${{ vars.TERRAFORM_LOCK_TABLE }}
+      TF_REMOTE_STATE_BUCKET_STAGING: ${{ vars.TERRAFORM_STATE_BUCKET_STAGING }}
+      TF_REMOTE_STATE_BUCKET_PRODUCTION: ${{ vars.TERRAFORM_STATE_BUCKET_PRODUCTION }}
+      TF_REMOTE_LOCK_TABLE_STAGING: ${{ vars.TERRAFORM_LOCK_TABLE_STAGING }}
+      TF_REMOTE_LOCK_TABLE_PRODUCTION: ${{ vars.TERRAFORM_LOCK_TABLE_PRODUCTION }}
+      TF_STATE_KEY_PREFIX: ${{ vars.TERRAFORM_STATE_KEY_PREFIX }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9.0"
+          terraform_wrapper: false
+
+      - name: Configure AWS credentials (staging)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME_STAGING }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
+
+      - name: Render terraform backend configs
+        run: chmod +x scripts/render-backend-config.sh && ./scripts/render-backend-config.sh
+
+      - name: Build Lambda
+        run: make build-lambda
+
+      - name: Terraform init
+        run: terraform -chdir=infra/terraform init -input=false -backend-config="${GITHUB_WORKSPACE}/infra/terraform/.backend/staging.hcl"
+
+      - name: Terraform apply
+        run: terraform -chdir=infra/terraform apply -auto-approve -var-file=environments/staging.tfvars
+
+      - name: Health URL
+        run: terraform -chdir=infra/terraform output -raw health_url

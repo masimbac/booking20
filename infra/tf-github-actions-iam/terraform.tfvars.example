@@ -1,0 +1,26 @@
+# Copy to terraform.tfvars (ignored by Git). Requires admin/AWSConsole credentials —
+# CI deploy roles assume this bootstrap has already completed.
+
+create_oidc_provider = true
+
+aws_region                     = "us-east-1"
+github_repository              = "YOUR_ORG/booking-2.0"
+remote_state_bucket_name      = "booking20-staging-terraform"
+remote_lock_table_name        = "booking20-staging-terraform-locks"
+booking_resource_prefix       = "booking20"
+terraform_state_key_prefix    = "booking20"
+
+# Typical trunk-based staging gate (merge to main):
+github_staging_refs = ["refs/heads/main"]
+
+# Staging deploy workflow attaches GitHub Environment "staging"; trust that OIDC `sub`:
+trust_staging_github_environment = true
+staging_github_environment       = "staging"
+
+# Allows `terraform plan` on PRs (see .github/workflows/terraform-plan-pr.yml).
+trust_github_pull_request_workflows = true
+
+# Optional custom subjects beyond branch refs + environment claim.
+# staging_additional_github_subjects = []
+
+# production_github_environment defaults to "production".
